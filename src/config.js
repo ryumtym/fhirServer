@@ -1,5 +1,7 @@
 const { VERSIONS } = require('@asymmetrik/node-fhir-server-core').constants;
 const env = require('var');
+let generateCapabilityStatement = require('./capability.js').generateStatements; // require the statement generator file
+
 
 /**
  * @name mongoConfig
@@ -26,6 +28,7 @@ let whitelist = whitelist_env && whitelist_env.length === 1 ? whitelist_env[0] :
  * @summary @asymmetrik/node-fhir-server-core configurations.
  */
 let fhirServerConfig = {
+  // statementGenerator: generateCapabilityStatement,
   auth: {
     // This servers URI
     resourceServer: env.RESOURCE_SERVER,
@@ -33,10 +36,23 @@ let fhirServerConfig = {
     // if you use this strategy, you need to add the corresponding env vars to docker-compose
     //
     // strategy: {
+		// 	name: 'basic',
+		// 	service: './src/strategies/basic.strategy.js'
+		// },
+
+    // strategy: {
     // 	name: 'bearer',
     // 	useSession: false,
     // 	service: './src/strategies/bearer.strategy.js'
     // },
+
+		// Define our strategy here, for smart to work, we need the name to be bearer
+		// and to point to a service that exports a Smart on FHIR compatible strategy
+    // type: 'smart',
+		// strategy: {
+		// 	name: 'bearer',
+		// 	service: './src/strategies/sof.strategy.js'
+		// }
   },
   server: {
     // support various ENV that uses PORT vs SERVER_PORT
@@ -54,14 +70,14 @@ let fhirServerConfig = {
   // If you want to set up conformance statement with security enabled
   // Uncomment the following block
   //
-  security: [
+  security: [//ここで認証urlとtokenアクセスurlを指定(ここだけenv.jsonで指定しない)
     {
       url: 'authorize',
-      valueUri: `${env.AUTH_SERVER_URI}/authorize`,
+      valueUri: `${env.AUTH_SERVER_URI}/auth/realms/test/protocol/openid-connect/auth`,
     },
     {
       url: 'token',
-      valueUri: `${env.AUTH_SERVER_URI}/token`,
+      valueUri: `${env.AUTH_SERVER_URI}/auth/realms/test/protocol/openid-connect/token`,
     },
     // optional - registration
   ],
@@ -88,12 +104,44 @@ let fhirServerConfig = {
       service: './src/services/claim/claim.service.js',
       versions: [VERSIONS['4_0_0']],
     },
+    Condition: {
+      service: './src/services/condition/condition.service.js',
+      versions: [VERSIONS['4_0_0']],
+    },
+    Coverage: {
+      service: './src/services/coverage/coverage.service.js',
+      versions: [VERSIONS['4_0_0']],
+    },
+    Immunization: {
+      service: './src/services/immunization/immunization.service.js',
+      versions: [VERSIONS['4_0_0']],
+    },
+    Medication: {
+      service: './src/services/medication/medication.service.js',
+      versions: [VERSIONS['4_0_0']],
+    },
+    MedicationAdministration: {
+      service: './src/services/medicationadministration/medicationadministration.service.js',
+      versions: [VERSIONS['4_0_0']],
+    },
+    MedicationDispense: {
+      service: './src/services/medicationdispense/medicationdispense.service.js',
+      versions: [VERSIONS['4_0_0']],
+    },
+    MedicationRequest: {
+      service: './src/services/medicationrequest/medicationrequest.service.js',
+      versions: [VERSIONS['4_0_0']],
+    },
+    MedicationStatement: {
+      service: './src/services/medicationstatement/medicationstatement.service.js',
+      versions: [VERSIONS['4_0_0']],
+    },
     Organization: {
       service: './src/services/organization/organization.service.js',
       versions: [VERSIONS['4_0_0']],
     },
-    Condition: {
-      service: './src/services/condition/condition.service.js',
+    Observation: {
+      service: './src/services/observation/observation.service.js',
       versions: [VERSIONS['4_0_0']],
     },
     Patient: {

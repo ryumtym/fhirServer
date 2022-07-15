@@ -33,16 +33,8 @@ let buildStu3SearchQuery = (args) => {
   let { _content, _format, _id, _lastUpdated, _profile, _query, _security, _tag } = args;
 
   // Search Result params
-  let {
-    _INCLUDE,
-    _REVINCLUDE,
-    _SORT,
-    _COUNT,
-    _SUMMARY,
-    _ELEMENTS,
-    _CONTAINED,
-    _CONTAINEDTYPED,
-  } = args;
+  let { _INCLUDE, _REVINCLUDE, _SORT, _COUNT, _SUMMARY, _ELEMENTS, _CONTAINED, _CONTAINEDTYPED } =
+    args;
 
   // Patient search params
   let active = args['active'];
@@ -75,15 +67,15 @@ let buildStu3SearchQuery = (args) => {
   let ors = [];
 
   if (address) {
-    let orsAddress = addressQueryBuilder(address);
-    for (let i = 0; i < orsAddress.length; i++) {
-      ors.push(orsAddress[i]);
+    let orsAddresses = addressQueryBuilder(address);
+    for (let orsAddress in orsAddresses) {
+      ors.push(orsAddress);
     }
   }
   if (name) {
-    let orsName = nameQueryBuilder(name);
-    for (let i = 0; i < orsName.length; i++) {
-      ors.push(orsName[i]);
+    let orsNames = nameQueryBuilder(name);
+    for (let orsName in orsNames) {
+      ors.push(orsName);
     }
   }
   if (ors.length !== 0) {
@@ -133,11 +125,15 @@ let buildStu3SearchQuery = (args) => {
   }
 
   if (birthdate) {
-    query.birthDate = dateQueryBuilder(birthdate, 'date', '');
+    query.birthDate = dateQueryBuilder(birthdate, 'date', 'birthDate')
+    // console.log(dateQueryBuilder(birthdate, 'date', 'birthDate'))
+    // query.birthDate = {'$gt': '1931-05-07T00:00+00:00', '$lt': '1963-05-07T00:00+00:00'}
+    console.log(query.birthDate)
   }
 
   if (death_date) {
-    query.deceasedDateTime = dateQueryBuilder(death_date, 'dateTime', '');
+    query.deceasedDateTime = dateQueryBuilder(death_date, 'date', 'deceasedDateTime');
+    console.log(query.deceasedDateTime)
   }
 
   if (deceased) {
@@ -162,6 +158,7 @@ let buildStu3SearchQuery = (args) => {
 
   if (general_practitioner) {
     let queryBuilder = referenceQueryBuilder(general_practitioner, 'generalPractitioner.reference');
+    console.log(queryBuilder)
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
     }
@@ -229,16 +226,8 @@ let buildDstu2SearchQuery = (args) => {
   let { _content, _format, _id, _lastUpdated, _profile, _query, _security, _tag } = args;
 
   // Search Result params
-  let {
-    _INCLUDE,
-    _REVINCLUDE,
-    _SORT,
-    _COUNT,
-    _SUMMARY,
-    _ELEMENTS,
-    _CONTAINED,
-    _CONTAINEDTYPED,
-  } = args;
+  let { _INCLUDE, _REVINCLUDE, _SORT, _COUNT, _SUMMARY, _ELEMENTS, _CONTAINED, _CONTAINEDTYPED } =
+    args;
 
   // Patient search params
   let active = args['active'];
@@ -271,15 +260,15 @@ let buildDstu2SearchQuery = (args) => {
   let ors = [];
 
   if (address) {
-    let orsAddress = addressQueryBuilder(address);
-    for (let i = 0; i < orsAddress.length; i++) {
-      ors.push(orsAddress[i]);
+    let orsAddresses = addressQueryBuilder(address);
+    for (let orsAddress in orsAddresses) {
+      ors.push(orsAddress);
     }
   }
   if (name) {
-    let orsName = nameQueryBuilder(name);
-    for (let i = 0; i < orsName.length; i++) {
-      ors.push(orsName[i]);
+    let orsNames = nameQueryBuilder(name);
+    for (let orsName in orsNames) {
+      ors.push(orsName);
     }
   }
   if (ors.length !== 0) {
@@ -433,10 +422,16 @@ module.exports.search = (args) =>
     let { base_version } = args;
     let query = {};
 
-    if (base_version === VERSIONS['3_0_1']) {
-      query = buildStu3SearchQuery(args);
-    } else if (base_version === VERSIONS['1_0_2']) {
-      query = buildDstu2SearchQuery(args);
+
+    switch (base_version) {
+      case VERSIONS['1_0_2']:
+        query = buildDstu2SearchQuery(args);
+        break;
+      case VERSIONS['3_0_1']:
+      case VERSIONS['4_0_0']:
+      case VERSIONS['4_0_1']:
+        query = buildStu3SearchQuery(args);
+        break;
     }
 
     // Grab an instance of our DB and collection
@@ -444,12 +439,16 @@ module.exports.search = (args) =>
     let collection = db.collection(`${COLLECTION.PATIENT}_${base_version}`);
     let Patient = getPatient(base_version);
 
+    console.log("args&query" + JSON.stringify(args,query))
+
     // Query our collection for this observation
     collection.find(query, (err, data) => {
       if (err) {
         logger.error('Error with Patient.search: ', err);
         return reject(err);
       }
+
+      // console.log(collection.find({ query : JSON.stringify({ $gt :  1991-05-07, $lt : 1999-02-03})}));
 
       // Patient is a patient cursor, pull documents out before resolving
       data.toArray().then((patients) => {
@@ -589,7 +588,7 @@ module.exports.update = (args, { req }) =>
         // save to history
         let history_collection = db.collection(`${COLLECTION.PATIENT}_${base_version}_History`);
 
-        let history_patient = Object.assign(cleaned, { id: id });
+        let history_patient = Object.assign(cleaned, { _id: id + cleaned.meta.versionId });
 
         // Insert our patient record to history but don't assign _id
         return history_collection.insertOne(history_patient, (err3) => {
@@ -689,10 +688,15 @@ module.exports.history = (args, context) =>
 
     let query = {};
 
-    if (base_version === VERSIONS['3_0_1']) {
-      query = buildStu3SearchQuery(args);
-    } else if (base_version === VERSIONS['1_0_2']) {
-      query = buildDstu2SearchQuery(args);
+    switch (base_version) {
+      case VERSIONS['1_0_2']:
+        query = buildDstu2SearchQuery(args);
+        break;
+      case VERSIONS['3_0_1']:
+      case VERSIONS['4_0_0']:
+      case VERSIONS['4_0_1']:
+        query = buildStu3SearchQuery(args);
+        break;
     }
 
     // Grab an instance of our DB and collection
@@ -724,10 +728,15 @@ module.exports.historyById = (args, context) =>
     let { base_version, id } = args;
     let query = {};
 
-    if (base_version === VERSIONS['3_0_1']) {
-      query = buildStu3SearchQuery(args);
-    } else if (base_version === VERSIONS['1_0_2']) {
-      query = buildDstu2SearchQuery(args);
+    switch (base_version) {
+      case VERSIONS['1_0_2']:
+        query = buildDstu2SearchQuery(args);
+        break;
+      case VERSIONS['3_0_1']:
+      case VERSIONS['4_0_0']:
+      case VERSIONS['4_0_1']:
+        query = buildStu3SearchQuery(args);
+        break;
     }
 
     query.id = `${id}`;

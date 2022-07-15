@@ -2,11 +2,25 @@
 
 const { VERSIONS } = require('@asymmetrik/node-fhir-server-core').constants;
 const { resolveSchema } = require('@asymmetrik/node-fhir-server-core');
-const FHIRServer = require('@asymmetrik/node-fhir-server-core');
-const { ObjectID } = require('mongodb');
+const { COLLECTION, CLIENT_DB } = require('../../constants');
+const moment = require('moment-timezone');
+const globals = require('../../globals');
+const jsonpatch = require('fast-json-patch');
+
+const { getUuid } = require('../../utils/uid.util');
+
 const logger = require('@asymmetrik/node-fhir-server-core').loggers.get();
 
-let getMedication = (base_version) => {
+const {
+  stringQueryBuilder,
+  tokenQueryBuilder,
+  referenceQueryBuilder,
+  addressQueryBuilder,
+  nameQueryBuilder,
+  dateQueryBuilder,
+} = require('../../utils/querybuilder.util');
+
+let getmedication = (base_version) => {
   return resolveSchema(base_version, 'Medication');
 };
 
@@ -14,60 +28,143 @@ let getMeta = (base_version) => {
   return resolveSchema(base_version, 'Meta');
 };
 
-module.exports.searchById = (args) =>
+
+let buildRelease4SearchQuery = (args) => {
+  // Common search params
+  let { _content, _format, _id, _lastUpdated, _profile, _query, _security, _tag } = args;
+
+  // Search Result params
+  let {
+    _INCLUDE,
+    _REVINCLUDE,
+    _SORT,
+    _COUNT,
+    _SUMMARY,
+    _ELEMENTS,
+    _CONTAINED,
+    _CONTAINEDTYPED,
+  } = args;
+
+  // Medication search params
+  let code = args['code'];
+  let expiration_date = args['expiration_date'];
+  let form = args['form'];
+  let identifier = args['identifier'];
+  let ingredient = args['ingredient'];
+  let ingredient_code = args['ingredient-code'];
+  let lot_number = args['lot-number'];
+  let manufacturer = args['manufacturer'];
+  let status = args['staus'];
+
+
+  let query = {};
+  let ors = [];
+
+  if (ors.length !== 0) {
+    query.$and = ors;
+  }
+
+  if (_id) {
+    query.id = _id;
+  }
+
+  if (code) {
+    let queryBuilder = tokenQueryBuilder(code, 'value', 'value', 'code');
+    for (let i in queryBuilder) {
+      query[i] = queryBuilder[i];
+    }
+  }
+
+  if (expiration_date) {
+    query.deceasedDateTime = dateQueryBuilder(expiration_date, 'batch.expirationDate', '');
+  }
+
+  if (form) {
+    let queryBuilder = tokenQueryBuilder(form, 'value', 'value', 'form');
+    for (let i in queryBuilder) {
+      query[i] = queryBuilder[i];
+    }
+  }
+
+  if (identifier) {
+    let queryBuilder = tokenQueryBuilder(identifier, 'value', 'identifier', '');
+    for (let i in queryBuilder) {
+      query[i] = queryBuilder[i];
+    }
+  }
+
+  if (ingredient) {
+    let queryBuilder = referenceQueryBuilder(ingredient, 'ingredient');
+    for (let i in queryBuilder) {
+      query[i] = queryBuilder[i];
+    }
+  }
+
+  if (ingredient_code) {
+    let queryBuilder = tokenQueryBuilder(ingredient_code, 'value', 'ingredient.item', '');
+    for (let i in queryBuilder) {
+      query[i] = queryBuilder[i];
+    }
+  }
+
+  if (lot_number) {
+    let queryBuilder = tokenQueryBuilder(lot_number, 'value', 'batch.lotNumber', '');
+    for (let i in queryBuilder) {
+      query[i] = queryBuilder[i];
+    }
+  }
+
+  if (manufacturer) {
+    let queryBuilder = referenceQueryBuilder(manufacturer, 'manufacturer');
+    for (let i in queryBuilder) {
+      query[i] = queryBuilder[i];
+    }
+  }
+
+  if (status) {
+    let queryBuilder = tokenQueryBuilder(status, 'value', 'status', '');
+    for (let i in queryBuilder) {
+      query[i] = queryBuilder[i];
+    }
+  }
+
+  return query;
+};
+
+/**
+ *
+ * @param {*} args
+ * @param {*} context
+ * @param {*} logger
+ */
+module.exports.search = (args) =>
   new Promise((resolve, reject) => {
     logger.info('Medication >>> search');
 
-    // Common search params
-    let {
-      base_version,
-      _content,
-      _format,
-      _id,
-      _lastUpdated,
-      _profile,
-      _query,
-      _security,
-      _tag,
-    } = args;
+    let { base_version } = args;
+    let query = {};
+    query = buildRelease4SearchQuery(args);
 
-    // Search Result params
-    let {
-      _INCLUDE,
-      _REVINCLUDE,
-      _SORT,
-      _COUNT,
-      _SUMMARY,
-      _ELEMENTS,
-      _CONTAINED,
-      _CONTAINEDTYPED,
-    } = args;
+    // Grab an instance of our DB and collection
+    let db = globals.get(CLIENT_DB);
+    let collection = db.collection(`${COLLECTION.MEDICATION}_${base_version}`);
+    let Medication = getmedication(base_version);
 
-    // Resource Specific params
-    let code = args['code'];
-    let container = args['container'];
-    let form = args['form'];
-    let ingredient = args['ingredient'];
-    let ingredient_code = args['ingredient-code'];
-    let manufacturer = args['manufacturer'];
-    let over_the_counter = args['over-the-counter'];
-    let package_item = args['package-item'];
-    let package_item_code = args['package-item-code'];
-    let status = args['status'];
+    // Query our collection for this observation
+    collection.find(query, (err, data) => {
+      if (err) {
+        logger.error('Error with Medication.search: ', err);
+        return reject(err);
+      }
 
-    // TODO: Build query from Parameters
-
-    // TODO: Query database
-
-    let Medication = getMedication(base_version);
-
-    // Cast all results to Medication Class
-    let medication_resource = new Medication();
-    // TODO: Set data with constructor or setter methods
-    medication_resource.id = 'test id';
-
-    // Return Array
-    resolve([medication_resource]);
+      // Medication is a medication cursor, pull documents out before resolving
+      data.toArray().then((medications) => {
+        medications.forEach(function (element, i, returnArray) {
+          returnArray[i] = new Medication(element);
+        });
+        resolve(medications);
+      });
+    });
   });
 
 module.exports.searchById = (args) =>
@@ -75,68 +172,145 @@ module.exports.searchById = (args) =>
     logger.info('Medication >>> searchById');
 
     let { base_version, id } = args;
+    let Medication = getmedication(base_version);
 
-    let Medication = getMedication(base_version);
-
-    // TODO: Build query from Parameters
-
-    // TODO: Query database
-
-    // Cast result to Medication Class
-    let medication_resource = new Medication();
-    // TODO: Set data with constructor or setter methods
-    medication_resource.id = 'test id';
-
-    // Return resource class
-    // resolve(medication_resource);
-    resolve();
+    // Grab an instance of our DB and collection
+    let db = globals.get(CLIENT_DB);
+    let collection = db.collection(`${COLLECTION.MEDICATION}_${base_version}`);
+    // Query our collection for this observation
+    collection.findOne({ id: id.toString() }, (err, medication) => {
+      if (err) {
+        logger.error('Error with Medication.searchById: ', err);
+        return reject(err);
+      }
+      if (medication) {
+        resolve(new Medication(medication));
+      }
+      resolve();
+    });
   });
 
 module.exports.create = (args, { req }) =>
   new Promise((resolve, reject) => {
     logger.info('Medication >>> create');
 
-    let { base_version, resource } = args;
-    // Make sure to use this ID when inserting this resource
-    let id = new ObjectID().toString();
+    let resource = req.body;
 
-    let Medication = getMedication(base_version);
+    let { base_version } = args;
+
+    // Grab an instance of our DB and collection (by version)
+    let db = globals.get(CLIENT_DB);
+    let collection = db.collection(`${COLLECTION.MEDICATION}_${base_version}`);
+
+    // Get current record
+    let Medication = getmedication(base_version);
+    let medication = new Medication(resource);
+
+    // If no resource ID was provided, generate one.
+    let id = getUuid(medication);
+
+    // Create the resource's metadata
     let Meta = getMeta(base_version);
+    medication.meta = new Meta({
+      versionId: '1',
+      lastUpdated: moment.utc().format('YYYY-MM-DDTHH:mm:ssZ'),
+    });
 
-    // TODO: determine if client/server sets ID
+    // Create the document to be inserted into Mongo
+    let doc = JSON.parse(JSON.stringify(medication.toJSON()));
+    Object.assign(doc, { id: id });
 
-    // Cast resource to Medication Class
-    let medication_resource = new Medication(resource);
-    medication_resource.meta = new Meta();
-    // TODO: set meta info
+    // Create a clone of the object without the _id parameter before assigning a value to
+    // the _id parameter in the original document
+    let history_doc = Object.assign({}, doc);
+    Object.assign(doc, { _id: id });
 
-    // TODO: save record to database
+    // Insert our medication record
+    collection.insertOne(doc, (err) => {
+      if (err) {
+        logger.error('Error with Medication.create: ', err);
+        return reject(err);
+      }
 
-    // Return Id
-    resolve({ id });
+      // Save the resource to history
+      let history_collection = db.collection(`${COLLECTION.MEDICATION}_${base_version}_History`);
+
+      // Insert our medication record to history but don't assign _id
+      return history_collection.insertOne(history_doc, (err2) => {
+        if (err2) {
+          logger.error('Error with medicationHistory.create: ', err2);
+          return reject(err2);
+        }
+        return resolve({ id: doc.id, resource_version: doc.meta.versionId });
+      });
+    });
   });
 
 module.exports.update = (args, { req }) =>
   new Promise((resolve, reject) => {
     logger.info('Medication >>> update');
 
-    let { base_version, id, resource } = args;
+    let resource = req.body;
 
-    let Medication = getMedication(base_version);
-    let Meta = getMeta(base_version);
+    let { base_version, id } = args;
 
-    // Cast resource to Medication Class
-    let medication_resource = new Medication(resource);
-    medication_resource.meta = new Meta();
-    // TODO: set meta info, increment meta ID
+    // Grab an instance of our DB and collection
+    let db = globals.get(CLIENT_DB);
+    let collection = db.collection(`${COLLECTION.MEDICATION}_${base_version}`);
 
-    // TODO: save record to database
+    // Get current record
+    // Query our collection for this observation
+    collection.findOne({ id: id.toString() }, (err, data) => {
+      if (err) {
+        logger.error('Error with Medication.searchById: ', err);
+        return reject(err);
+      }
 
-    // Return id, if recorded was created or updated, new meta version id
-    resolve({
-      id: medication_resource.id,
-      created: false,
-      resource_version: medication_resource.meta.versionId,
+      let Medication = getmedication(base_version);
+      let medication = new Medication(resource);
+
+      if (data && data.meta) {
+        let foundmedication = new Medication(data);
+        let meta = foundmedication.meta;
+        meta.versionId = `${parseInt(foundmedication.meta.versionId) + 1}`;
+        medication.meta = meta;
+      } else {
+        let Meta = getMeta(base_version);
+        medication.meta = new Meta({
+          versionId: '1',
+          lastUpdated: moment.utc().format('YYYY-MM-DDTHH:mm:ssZ'),
+        });
+      }
+
+      let cleaned = JSON.parse(JSON.stringify(medication));
+      let doc = Object.assign(cleaned, { _id: id });
+
+      // Insert/update our medication record
+      collection.findOneAndUpdate({ id: id }, { $set: doc }, { upsert: true }, (err2, res) => {
+        if (err2) {
+          logger.error('Error with Medication.update: ', err2);
+          return reject(err2);
+        }
+
+        // save to history
+        let history_collection = db.collection(`${COLLECTION.MEDICATION}_${base_version}_History`);
+
+        let history_medication = Object.assign(cleaned, { _id: id + cleaned.meta.versionId  });
+
+        // Insert our medication record to history but don't assign _id
+        return history_collection.insertOne(history_medication, (err3) => {
+          if (err3) {
+            logger.error('Error with medicationHistory.create: ', err3);
+            return reject(err3);
+          }
+
+          return resolve({
+            id: id,
+            created: res.lastErrorObject && !res.lastErrorObject.updatedExisting,
+            resource_version: doc.meta.versionId,
+          });
+        });
+      });
     });
   });
 
@@ -144,12 +318,43 @@ module.exports.remove = (args, context) =>
   new Promise((resolve, reject) => {
     logger.info('Medication >>> remove');
 
-    let { id } = args;
+    let { base_version, id } = args;
 
-    // TODO: delete record in database (soft/hard)
+    // Grab an instance of our DB and collection
+    let db = globals.get(CLIENT_DB);
+    let collection = db.collection(`${COLLECTION.MEDICATION}_${base_version}`);
+    // Delete our medication record
+    collection.deleteOne({ id: id }, (err, _) => {
+      if (err) {
+        logger.error('Error with Medication.remove');
+        return reject({
+          // Must be 405 (Method Not Allowed) or 409 (Conflict)
+          // 405 if you do not want to allow the delete
+          // 409 if you can't delete because of referential
+          // integrity or some other reason
+          code: 409,
+          message: err.message,
+        });
+      }
 
-    // Return number of records deleted
-    resolve({ deleted: 0 });
+      // delete history as well.  You can chose to save history.  Up to you
+      let history_collection = db.collection(`${COLLECTION.MEDICATION}_${base_version}_History`);
+      return history_collection.deleteMany({ id: id }, (err2) => {
+        if (err2) {
+          logger.error('Error with Medication.remove');
+          return reject({
+            // Must be 405 (Method Not Allowed) or 409 (Conflict)
+            // 405 if you do not want to allow the delete
+            // 409 if you can't delete because of referential
+            // integrity or some other reason
+            code: 409,
+            message: err2.message,
+          });
+        }
+
+        return resolve({ deleted: _.result && _.result.n });
+      });
+    });
   });
 
 module.exports.searchByVersionId = (args, context) =>
@@ -158,17 +363,27 @@ module.exports.searchByVersionId = (args, context) =>
 
     let { base_version, id, version_id } = args;
 
-    let Medication = getMedication(base_version);
+    let Medication = getmedication(base_version);
 
-    // TODO: Build query from Parameters
+    let db = globals.get(CLIENT_DB);
+    let history_collection = db.collection(`${COLLECTION.MEDICATION}_${base_version}_History`);
 
-    // TODO: Query database
+    // Query our collection for this observation
+    history_collection.findOne(
+      { id: id.toString(), 'meta.versionId': `${version_id}` },
+      (err, medication) => {
+        if (err) {
+          logger.error('Error with Medication.searchByVersionId: ', err);
+          return reject(err);
+        }
 
-    // Cast result to Medication Class
-    let medication_resource = new Medication();
+        if (medication) {
+          resolve(new Medication(medication));
+        }
 
-    // Return resource class
-    resolve(medication_resource);
+        resolve();
+      }
+    );
   });
 
 module.exports.history = (args, context) =>
@@ -176,105 +391,134 @@ module.exports.history = (args, context) =>
     logger.info('Medication >>> history');
 
     // Common search params
-    let {
-      base_version,
-      _content,
-      _format,
-      _id,
-      _lastUpdated,
-      _profile,
-      _query,
-      _security,
-      _tag,
-    } = args;
+    let { base_version } = args;
 
-    // Search Result params
-    let {
-      _INCLUDE,
-      _REVINCLUDE,
-      _SORT,
-      _COUNT,
-      _SUMMARY,
-      _ELEMENTS,
-      _CONTAINED,
-      _CONTAINEDTYPED,
-    } = args;
+    let query = {};
+    query = buildRelease4SearchQuery(args);
 
-    // Resource Specific params
-    let code = args['code'];
-    let container = args['container'];
-    let form = args['form'];
-    let ingredient = args['ingredient'];
-    let ingredient_code = args['ingredient-code'];
-    let manufacturer = args['manufacturer'];
-    let over_the_counter = args['over-the-counter'];
-    let package_item = args['package-item'];
-    let package_item_code = args['package-item-code'];
-    let status = args['status'];
 
-    // TODO: Build query from Parameters
+    // Grab an instance of our DB and collection
+    let db = globals.get(CLIENT_DB);
+    let history_collection = db.collection(`${COLLECTION.MEDICATION}_${base_version}_History`);
+    let Medication = getmedication(base_version);
 
-    // TODO: Query database
+    // Query our collection for this observation
+    history_collection.find(query, (err, data) => {
+      if (err) {
+        logger.error('Error with Medication.history: ', err);
+        return reject(err);
+      }
 
-    let Medication = getMedication(base_version);
-
-    // Cast all results to Medication Class
-    let medication_resource = new Medication();
-
-    // Return Array
-    resolve([medication_resource]);
+      // Medication is a medication cursor, pull documents out before resolving
+      data.toArray().then((medications) => {
+        medications.forEach(function (element, i, returnArray) {
+          returnArray[i] = new Medication(element);
+        });
+        resolve(medications);
+      });
+    });
   });
 
 module.exports.historyById = (args, context) =>
   new Promise((resolve, reject) => {
     logger.info('Medication >>> historyById');
 
-    // Common search params
-    let {
-      base_version,
-      _content,
-      _format,
-      _id,
-      _lastUpdated,
-      _profile,
-      _query,
-      _security,
-      _tag,
-    } = args;
+    let { base_version, id } = args;
+    let query = {};
+    query = buildRelease4SearchQuery(args);
 
-    // Search Result params
-    let {
-      _INCLUDE,
-      _REVINCLUDE,
-      _SORT,
-      _COUNT,
-      _SUMMARY,
-      _ELEMENTS,
-      _CONTAINED,
-      _CONTAINEDTYPED,
-    } = args;
+    query.id = `${id}`;
 
-    // Resource Specific params
-    let code = args['code'];
-    let container = args['container'];
-    let form = args['form'];
-    let ingredient = args['ingredient'];
-    let ingredient_code = args['ingredient-code'];
-    let manufacturer = args['manufacturer'];
-    let over_the_counter = args['over-the-counter'];
-    let package_item = args['package-item'];
-    let package_item_code = args['package-item-code'];
-    let status = args['status'];
+    // Grab an instance of our DB and collection
+    let db = globals.get(CLIENT_DB);
+    let history_collection = db.collection(`${COLLECTION.MEDICATION}_${base_version}_History`);
+    let Medication = getmedication(base_version);
 
-    // TODO: Build query from Parameters
+    // Query our collection for this observation
+    history_collection.find(query, (err, data) => {
+      if (err) {
+        logger.error('Error with Medication.historyById: ', err);
+        return reject(err);
+      }
 
-    // TODO: Query database
+      // Medication is a medication cursor, pull documents out before resolving
+      data.toArray().then((medications) => {
+        medications.forEach(function (element, i, returnArray) {
+          returnArray[i] = new Medication(element);
+        });
+        resolve(medications);
+      });
+    });
+  });
 
-    let Medication = getMedication(base_version);
+module.exports.patch = (args, context) =>
+  new Promise((resolve, reject) => {
+    logger.info('Medication >>> patch'); // Should this say update (instead of patch) because the end result is that of an update, not a patch
 
-    // Cast all results to Medication Class
-    let medication_resource = new Medication();
+    let { base_version, id, patchContent } = args;
 
-    // Return Array
-    resolve([medication_resource]);
+    // Grab an instance of our DB and collection
+    let db = globals.get(CLIENT_DB);
+    let collection = db.collection(`${COLLECTION.MEDICATION}_${base_version}`);
+
+    // Get current record
+    // Query our collection for this observation
+    collection.findOne({ id: id.toString() }, (err, data) => {
+      if (err) {
+        logger.error('Error with Medication.searchById: ', err);
+        return reject(err);
+      }
+
+      // Validate the patch
+      let errors = jsonpatch.validate(patchContent, data);
+      if (errors && Object.keys(errors).length > 0) {
+        logger.error('Error with patch contents');
+        return reject(errors);
+      }
+      // Make the changes indicated in the patch
+      let resource = jsonpatch.applyPatch(data, patchContent).newDocument;
+
+      let Medication = getmedication(base_version);
+      let medication = new Medication(resource);
+
+      if (data && data.meta) {
+        let foundmedication = new Medication(data);
+        let meta = foundmedication.meta;
+        meta.versionId = `${parseInt(foundmedication.meta.versionId) + 1}`;
+        medication.meta = meta;
+      } else {
+        return reject('Unable to patch resource. Missing either data or metadata.');
+      }
+
+      // Same as update from this point on
+      let cleaned = JSON.parse(JSON.stringify(medication));
+      let doc = Object.assign(cleaned, { _id: id });
+
+      // Insert/update our medication record
+      collection.findOneAndUpdate({ id: id }, { $set: doc }, { upsert: true }, (err2, res) => {
+        if (err2) {
+          logger.error('Error with Medication.update: ', err2);
+          return reject(err2);
+        }
+
+        // Save to history
+        let history_collection = db.collection(`${COLLECTION.MEDICATION}_${base_version}_History`);
+        let history_ = Object.assign(cleaned, { _id: id + cleaned.meta.versionId });
+        
+
+        // Insert our medication record to history but don't assign _id
+        return history_collection.insertOne(history_medication, (err3) => {
+          if (err3) {
+            logger.error('Error with medicationHistory.create: ', err3);
+            return reject(err3);
+          }
+
+          return resolve({
+            id: doc.id,
+            created: res.lastErrorObject && !res.lastErrorObject.updatedExisting,
+            resource_version: doc.meta.versionId,
+          });
+        });
+      });
+    });
   });

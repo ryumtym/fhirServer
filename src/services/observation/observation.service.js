@@ -18,6 +18,8 @@ const {
   addressQueryBuilder,
   nameQueryBuilder,
   dateQueryBuilder,
+  quantityQueryBuilder,
+  compositeQueryBuilder
 } = require('../../utils/querybuilder.util');
 
 let getObservation = (base_version) => {
@@ -33,16 +35,8 @@ let buildRelease4SearchQuery = (args) => {
   let { _content, _format, _id, _lastUpdated, _profile, _query, _security, _tag } = args;
 
   // Search Result params
-  let {
-    _INCLUDE,
-    _REVINCLUDE,
-    _SORT,
-    _COUNT,
-    _SUMMARY,
-    _ELEMENTS,
-    _CONTAINED,
-    _CONTAINEDTYPED,
-  } = args;
+  let { _INCLUDE, _REVINCLUDE, _SORT, _COUNT, _SUMMARY, _ELEMENTS, _CONTAINED, _CONTAINEDTYPED } =
+    args;
 
   // Observation search params
   let based_on = args['based-on'];
@@ -90,7 +84,6 @@ let buildRelease4SearchQuery = (args) => {
   let ors = [];
 
 
-
   if (ors.length !== 0) {
     query.$and = ors;
   }
@@ -98,6 +91,8 @@ let buildRelease4SearchQuery = (args) => {
   if (_id) {
     query.id = _id;
   }
+
+
 
   if (based_on) {
     let queryBuilder = referenceQueryBuilder(based_on, 'basedOn');
@@ -114,9 +109,10 @@ let buildRelease4SearchQuery = (args) => {
   }
 
   if (code) {
-    let queryBuilder = tokenQueryBuilder(code, 'value', 'code');
+    let queryBuilder = tokenQueryBuilder(code, 'coding', 'code');
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
+      console.log(query[i])
     }
   }
 
@@ -176,7 +172,7 @@ let buildRelease4SearchQuery = (args) => {
     let queryBuilder = tokenQueryBuilder(component_code, 'value', 'component.code', '');
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
-      console.log("sec/service/observ/compo_code" + query[i]);
+      // console.log("sec/service/observ/compo_code" + query[i]);
     }
   }
 
@@ -185,7 +181,12 @@ let buildRelease4SearchQuery = (args) => {
   }
 
   if (component_code_value_quantity) {
-    query['component-code-value-quantity'] = compositeQueryBuilder(component_code_value_quantity,'component-code-value-quantity','');
+    // console.log(compositeQueryBuilder(component_code_value_quantity,'component-code-value-quantity','valueQuantity'))
+    // query['component-code-value-quantity'] = compositeQueryBuilder(component_code_value_quantity,'code.coding|token','valueQuantity|value');
+    let queryBuilder = compositeQueryBuilder(component_code_value_quantity,'code.coding|token','valueQuantity|value');
+    for (let i in queryBuilder) {
+      query[i] = queryBuilder[i];
+    }
   }
 
   if (component_data_absent_reason) {
@@ -225,7 +226,7 @@ let buildRelease4SearchQuery = (args) => {
 
   if (date) {
     query.effectiveDateTime = dateQueryBuilder(date, 'date', 'effective');
-    console.log(query.effectiveDateTime)
+    // console.log(query.effectiveDateTime)
   }
 
   if (derived_from) {
@@ -236,7 +237,7 @@ let buildRelease4SearchQuery = (args) => {
   }
 
   if (device) {
-    let queryBuilder = referenceQueryBuilder(device, 'device');
+    let queryBuilder = referenceQueryBuilder(device, 'device.reference');
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
     }
@@ -312,13 +313,15 @@ let buildRelease4SearchQuery = (args) => {
     }
   }
 
+
   if (value_quantity) {
-    let queryBuilder = quantityQueryBuilder(value_quantity, 'value', 'value-quantity', '');
+    let queryBuilder = quantityQueryBuilder(value_quantity,'valueQuantity');
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
     }
   }
-  
+
+
   return query;
 };
 
@@ -335,18 +338,7 @@ module.exports.search = (args) =>
 
     let { base_version } = args;
     let query = {};
-
-
-    switch (base_version) {
-      case VERSIONS['1_0_2']:
-        query = buildRelease4SearchQuery(args);
-        break;
-      case VERSIONS['3_0_1']:
-      case VERSIONS['4_0_0']:
-      case VERSIONS['4_0_1']:
-        query = buildRelease4SearchQuery(args);
-        break;
-    }
+    query = buildRelease4SearchQuery(args);
 
 
     // Grab an instance of our DB and collection
@@ -354,8 +346,7 @@ module.exports.search = (args) =>
     let collection = db.collection(`${COLLECTION.OBSERVATION}_${base_version}`);
     let Observation = getObservation(base_version);
     console.log("args&query" + JSON.stringify(args,query))
-
-
+ 
     // Query our collection for this observation
     collection.find(query, (err, data) => {
       if (err) {

@@ -48,16 +48,25 @@ let nameQueryBuilder = function (target) {
   let ors = [];
 
   for (let i in split) {
+
     ors.push({
       $or: [
-        { 'name.text': { $regex: new RegExp(`${split[i]}`, 'i') } },
-        { 'name.family': { $regex: new RegExp(`${split[i]}`, 'i') } },
-        { 'name.given': { $regex: new RegExp(`${split[i]}`, 'i') } },
-        { 'name.suffix': { $regex: new RegExp(`${split[i]}`, 'i') } },
-        { 'name.prefix': { $regex: new RegExp(`${split[i]}`, 'i') } },
+        { 'name.text'   : { $regex: split[i], $options: "i" } },
+        { 'name.family' : { $regex: split[i], $options: "i" } },
+        { 'name.given'  : { $regex: split[i], $options: "i" } },
+        { 'name.suffix' : { $regex: split[i], $options: "i" } },
+        { 'name.prefix' : { $regex: split[i], $options: "i" } },
+
+        // { 'name.text': { $regex: new RegExp(`${split[i]}`, 'i') } },
+        // { 'name.family': { $regex: new RegExp(`${split[i]}`, 'i') } },
+        // { 'name.given': { $regex: new RegExp(`${split[i]}`, 'i') } },
+        // { 'name.suffix': { $regex: new RegExp(`${split[i]}`, 'i') } },
+        // { 'name.prefix': { $regex: new RegExp(`${split[i]}`, 'i') } },
       ],
     });
+
   }
+ 
   return ors;
 };
 
@@ -97,7 +106,6 @@ let tokenQueryBuilder = function (target, type, field, required) {
   if (value) {
     queryBuilder[`${field}.${type}`] = value;
   }
-
   return queryBuilder;
 };
 
@@ -190,6 +198,9 @@ let numberQueryBuilder = function (target) {
  * @param field path to specific field in the resource
  */
 let quantityQueryBuilder = function (target, field) {
+  // console.log("qb.quantityQbFunc,args->target:" +target)
+  // console.log("qb.quantityQbFunc,args->field:" + field)
+
   let qB = {};
   //split by the two pipes
   let [num, system, code] = target.split('|');
@@ -781,11 +792,15 @@ let dateQueryBuilder = function (date, type, path) {
  * @param field2 contains the path and search type
  */
 let compositeQueryBuilder = function (target, field1, field2) {
+
   let composite = [];
   let temp = {};
   let [target1, target2] = target.split(/[$,]/);
   let [path1, type1] = field1.split('|');
   let [path2, type2] = field2.split('|');
+  console.log([target])
+  console.log([path1, type1])
+  console.log([path2, type2])
 
   // Call the right queryBuilder based on type
   switch (type1) {
@@ -870,7 +885,7 @@ let compositeQueryBuilder = function (target, field1, field2) {
       temp[`${path2}`] = target2;
       composite.push(temp);
   }
-
+  console.log(JSON.stringify(composite))
   if (target.includes('$')) {
     return { $and: composite };
   } else {

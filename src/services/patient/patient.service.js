@@ -19,7 +19,6 @@ const {
   addressQueryBuilder,
   nameQueryBuilder,
   dateQueryBuilder,
-  qb
 } = require('../../utils/querybuilder.util');
 
 let getPatient = (base_version) => {
@@ -49,10 +48,20 @@ let buildStu3SearchQuery = (args) => {
   // let active = tokenModifiers(args,'active'); 
   let birthdate = args['birthdate'];
   let death_date = args['death-date'];
+
   let family = args['family'];
+  let familyContains = args['family:contains'];
+  let familyExact = args['family:exact'];
+
+
+
   let gender = args['gender'];
   let general_practitioner = args['general-practitioner'];
+
   let given = args['given'];
+  let givenContains = args['given:contains'];
+  let givenExact = args['given:exact'];
+
   let identifier = args['identifier'];
   
   let name = args['name'];
@@ -72,8 +81,13 @@ let buildStu3SearchQuery = (args) => {
   let query = {};
   let ors = [];
 
-  if (name || nameContains) {
-    let queryBuilder = nameQueryBuilder(name || nameContains, "");
+  if (name) {
+    let queryBuilder = nameQueryBuilder(name, "");
+    for (let i in queryBuilder) {
+      query = queryBuilder[i];
+    }
+  } else if(nameContains){
+    let queryBuilder = nameQueryBuilder(nameContains, "contains");
     for (let i in queryBuilder) {
       query = queryBuilder[i];
     }
@@ -112,8 +126,12 @@ let buildStu3SearchQuery = (args) => {
 
 
   if (family) {
-    query['name.family'] = stringQueryBuilder(family);
-  }
+    query['name.family'] = stringQueryBuilder(family, "");
+  } else if (familyContains) {
+    query['name.family'] = stringQueryBuilder(familyContains, "contains");
+  } else if(familyExact){
+    query['name.family'] = stringQueryBuilder(familyExact, "exact");
+  } 
 
   if (gender) {
     query.gender = gender;
@@ -128,8 +146,12 @@ let buildStu3SearchQuery = (args) => {
   }
 
   if (given) {
-    query['name.given'] = stringQueryBuilder(given);
-  }
+    query['name.given'] = stringQueryBuilder(given, "");
+  } else if (givenContains) {
+    query['name.given'] = stringQueryBuilder(givenContains, "contains");
+  } else if(givenExact){
+    query['name.given'] = stringQueryBuilder(givenExact, "exact");
+  } 
 
   if (identifier) {
     let queryBuilder = tokenQueryBuilder(identifier, 'value', 'identifier', '');

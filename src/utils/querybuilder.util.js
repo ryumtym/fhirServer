@@ -1,15 +1,24 @@
 const moment = require('moment-timezone');
-const { modifiersChecker } = require('./modifiers');
 
 /**
  * @name stringQueryBuilder
  * @description builds mongo default query for string inputs, no modifiers
  * @param {string} target what we are querying for
+ * @param {string} modif modifier
  * @return a mongo regex query
  */
-let stringQueryBuilder = function (target) {
+let stringQueryBuilder = function (target,modif) {
+
   let t2 = target.replace(/[\\(\\)\\-\\_\\+\\=\\/\\.]/g, '\\$&');
-  return { $regex: new RegExp('^' + t2, 'i') };
+  // return { $not: { $regex:"^" + t2 + "$"} };
+
+  if ( modif === 'contains'){
+    return { $regex:t2, $options: "i" };
+  } else if(modif === 'exact'){
+    return { $regex:"^" + t2 + "$"};
+  } else {
+    return { $regex: "^" + t2 , $options: "i" };
+  }
 };
 
 /**
@@ -43,52 +52,62 @@ let addressQueryBuilder = function (target) {
  * @description brute force method of matching human names. Splits the input and checks to see if every piece matches to
  * at least 1 part of the name field using regexs. Ignores case
  * @param {string} target
+ * @param {string} modif https://www.hl7.org/fhir/search.html#string
  * @return {array} ors
  */
 let nameQueryBuilder = function (target , modif) {
   let split = target.split(/[\s.,]+/);
   let ors = [];
  
-  if(modif === 'exact'){
-    for (let i in split) {
-      console.log(split[i])
-      ors.push({
-        $nor: [
-          { 'name.text'   : { $regex: split[i], $options: "i" } },
-          { 'name.family' : { $regex: split[i], $options: "i" } },
-          { 'name.given'  : { $regex: split[i], $options: "i" } },
-          { 'name.suffix' : { $regex: split[i], $options: "i" } },
-          { 'name.prefix' : { $regex: split[i], $options: "i" } },
-        ],
-      });
-    }
-  } else {
-    for (let i in split) {
+  // $nor: [
+  //   { 'name.text'   : { $regex: split[i], $options: "i" } },
+  //   { 'name.family' : { $regex: split[i], $options: "i" } },
+  //   { 'name.given'  : { $regex: split[i], $options: "i" } },
+  //   { 'name.suffix' : { $regex: split[i], $options: "i" } },
+  //   { 'name.prefix' : { $regex: split[i], $options: "i" } },
+  // ],
 
-      ors.push({
-        $or: [
-          { 'name.text'   : { $regex: split[i], $options: "i" } },
-          { 'name.family' : { $regex: split[i], $options: "i" } },
-          { 'name.given'  : { $regex: split[i], $options: "i" } },
-          { 'name.suffix' : { $regex: split[i], $options: "i" } },
-          { 'name.prefix' : { $regex: split[i], $options: "i" } },
-        ],
-      });
-    }
+    if(modif === 'exact'){
+      for (let i in split) {
+        ors.push({
+          $or: [
+            { 'name.text'   : { $regex: "^" + split[i] + "$" } },
+            { 'name.family' : { $regex: "^" + split[i] + "$" } },
+            { 'name.given'  : { $regex: "^" + split[i] + "$" } },
+            { 'name.suffix' : { $regex: "^" + split[i] + "$" } },
+            { 'name.prefix' : { $regex: "^" + split[i] + "$" } },
+          ],
+        });
+      }
+    } else if(modif ==='contains'){
+      for (let i in split) {
+        ors.push({
+          $or: [
+            { 'name.text'   : { $regex: split[i], $options: "i" } },
+            { 'name.family' : { $regex: split[i], $options: "i" } },
+            { 'name.given'  : { $regex: split[i], $options: "i" } },
+            { 'name.suffix' : { $regex: split[i], $options: "i" } },
+            { 'name.prefix' : { $regex: split[i], $options: "i" } },
+          ],
+        });
+      }
+    }else {
+      for (let i in split) {
+        ors.push({
+          $or: [
+            { 'name.text'   : { $regex: "^" + split[i], $options: "i" } },
+            { 'name.family' : { $regex: "^" + split[i], $options: "i" } },
+            { 'name.given'  : { $regex: "^" + split[i], $options: "i" } },
+            { 'name.suffix' : { $regex: "^" + split[i], $options: "i" } },
+            { 'name.prefix' : { $regex: "^" + split[i], $options: "i" } },
+          ],
+        });
+      }
   }
 
   return ors;
 };
 
-let qb = function(target,modif){
-  console.log(target,modif)
-  let queryBuilder = {};
-
-  console.log(queryBuilder[target] )
-  
-
-  return queryBuilder;
-}
 
 /**
  * @name tokenQueryBuilder
@@ -928,5 +947,4 @@ module.exports = {
   quantityQueryBuilder,
   compositeQueryBuilder,
   dateQueryBuilder,
-  qb
 };

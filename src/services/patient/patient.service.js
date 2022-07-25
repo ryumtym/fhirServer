@@ -8,7 +8,7 @@ const globals = require('../../globals');
 const jsonpatch = require('fast-json-patch');
 
 const { getUuid } = require('../../utils/uid.util');
-const { modifChecker } = require('../../utils/modifiers');
+const { modifiersChecker, tokenModifiers, modifCheck } = require('../../utils/modifiers');
 
 const logger = require('@asymmetrik/node-fhir-server-core').loggers.get();
 
@@ -19,6 +19,7 @@ const {
   addressQueryBuilder,
   nameQueryBuilder,
   dateQueryBuilder,
+  qb
 } = require('../../utils/querybuilder.util');
 
 let getPatient = (base_version) => {
@@ -30,8 +31,7 @@ let getMeta = (base_version) => {
 };
 
 let buildStu3SearchQuery = (args) => {
-  // console.log(args)
-  // console.log(modifChecker(args))
+
 
   // Common search params
   let { _content, _format, _id, _lastUpdated, _profile, _query, _security, _tag } = args;
@@ -40,53 +40,49 @@ let buildStu3SearchQuery = (args) => {
   let { _INCLUDE, _REVINCLUDE, _SORT, _COUNT, _SUMMARY, _ELEMENTS, _CONTAINED, _CONTAINEDTYPED } =
     args;
 
+  
   // Patient search params
-  let active = args['active'];
-  let address = args['address'];
-  let address_city = args['address-city'];
-  let address_country = args['address-country'];
-  let address_postalcode = args['address-postalcode'];
-  let address_state = args['address-state'];
-  let address_use = args['address-use'];
-  let animal_breed = args['animal-breed'];
-  let animal_species = args['animal-species'];
+
+
+  // console.log(args)
+  // console.log([tokenModifiers(args,'active')])
+  // let active = tokenModifiers(args,'active'); 
   let birthdate = args['birthdate'];
   let death_date = args['death-date'];
-  let deceased = args['deceased'];
-  let email = args['email'];
   let family = args['family'];
   let gender = args['gender'];
   let general_practitioner = args['general-practitioner'];
   let given = args['given'];
   let identifier = args['identifier'];
-  let language = args['language'];
-  let link = args['link'];
+  
   let name = args['name'];
   let nameContains = args['name:contains'];
-  let organization = args['organization'];
-  let phone = args['phone'];
-  let phonetic = args['phonetic'];
-  let telecom = args['telecom'];
+  let nameExact = args['name:exact'];
+
+  let active = args['active']
+
+  // const keyObj = Object.keys(args);
+  // console.log(modifiersChecker(args))
+  // console.log(modifCheck(keyObj[1]))
+  // const v = Object.keys(modifiersChecker(args))
+  // var stringifiedObj = v.map(x=>x);
+  // console.log(stringifiedObj)
+  // console.log(tokenModifiers(stringifiedObj))
 
   let query = {};
   let ors = [];
 
-  if (address) {
-    let orsAddresses = addressQueryBuilder(address);
-    for (let orsAddress in orsAddresses) {
-      ors.push(orsAddress);
-    }
-  }
-
   if (name || nameContains) {
-    let queryBuilder = nameQueryBuilder(name || nameContains);
+    let queryBuilder = nameQueryBuilder(name || nameContains, "");
     for (let i in queryBuilder) {
       query = queryBuilder[i];
     }
-
+  } else if(nameExact) {
+    let queryBuilder = nameQueryBuilder(nameExact ,'exact');
+    for (let i in queryBuilder) {
+      query = queryBuilder[i];
+    }
   }
-
-
 
   if (ors.length !== 0) {
     query.$and = ors;
@@ -97,42 +93,9 @@ let buildStu3SearchQuery = (args) => {
   }
 
   if (active) {
+    // console.log(modifCheck(args))
+    console.log(active)
     query.active = active === 'true';
-    console.log(query.active)
-  }
-
-  if (address_city) {
-    query['address.city'] = stringQueryBuilder(address_city);
-  }
-
-  if (address_country) {
-    query['address.country'] = stringQueryBuilder(address_country);
-  }
-
-  if (address_postalcode) {
-    query['address.postalCode'] = stringQueryBuilder(address_postalcode);
-  }
-
-  if (address_state) {
-    query['address.state'] = stringQueryBuilder(address_state);
-  }
-
-  if (address_use) {
-    query['address.use'] = address_use;
-  }
-
-  if (animal_breed) {
-    let queryBuilder = tokenQueryBuilder(animal_breed, 'code', 'animal.breed.coding', '');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
-
-  if (animal_species) {
-    let queryBuilder = tokenQueryBuilder(animal_species, 'code', 'animal.species.coding', '');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
   }
 
   if (birthdate) {
@@ -147,17 +110,6 @@ let buildStu3SearchQuery = (args) => {
     console.log(query.deceasedDateTime)
   }
 
-  if (deceased) {
-    query.deceasedBoolean = deceased === 'true';
-  }
-
-  // Forces system = 'email'
-  if (email) {
-    let queryBuilder = tokenQueryBuilder(email, 'value', 'telecom', 'email');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
 
   if (family) {
     query['name.family'] = stringQueryBuilder(family);
@@ -187,34 +139,7 @@ let buildStu3SearchQuery = (args) => {
     }
   }
 
-  if (language) {
-    let queryBuilder = tokenQueryBuilder(language, 'code', 'communication.language.coding', '');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
 
-  if (link) {
-    let queryBuilder = referenceQueryBuilder(link, 'link.other.reference');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
-
-  if (organization) {
-    let queryBuilder = referenceQueryBuilder(organization, 'managingOrganization.reference');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
-
-  // Forces system = 'phone'
-  if (phone) {
-    let queryBuilder = tokenQueryBuilder(phone, 'value', 'telecom', 'phone');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
 
   // TODO:  mongo doesn't natively support fuzzy but there are ways to do it
   // or use Elastic?
@@ -223,12 +148,6 @@ let buildStu3SearchQuery = (args) => {
   //
   // }
 
-  if (telecom) {
-    let queryBuilder = tokenQueryBuilder(telecom, 'value', 'telecom', '');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
 
   return query;
 };
@@ -248,6 +167,7 @@ module.exports.search = (args) =>
     let query = {};
     
     query = buildStu3SearchQuery(args);
+
 
     // Grab an instance of our DB and collection
     let db = globals.get(CLIENT_DB);

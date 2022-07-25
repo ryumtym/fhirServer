@@ -1,4 +1,6 @@
 const moment = require('moment-timezone');
+const { modifiersChecker } = require('./modifiers');
+
 /**
  * @name stringQueryBuilder
  * @description builds mongo default query for string inputs, no modifiers
@@ -43,32 +45,50 @@ let addressQueryBuilder = function (target) {
  * @param {string} target
  * @return {array} ors
  */
-let nameQueryBuilder = function (target) {
+let nameQueryBuilder = function (target , modif) {
   let split = target.split(/[\s.,]+/);
   let ors = [];
-
-  for (let i in split) {
-
-    ors.push({
-      $or: [
-        { 'name.text'   : { $regex: split[i], $options: "i" } },
-        { 'name.family' : { $regex: split[i], $options: "i" } },
-        { 'name.given'  : { $regex: split[i], $options: "i" } },
-        { 'name.suffix' : { $regex: split[i], $options: "i" } },
-        { 'name.prefix' : { $regex: split[i], $options: "i" } },
-
-        // { 'name.text': { $regex: new RegExp(`${split[i]}`, 'i') } },
-        // { 'name.family': { $regex: new RegExp(`${split[i]}`, 'i') } },
-        // { 'name.given': { $regex: new RegExp(`${split[i]}`, 'i') } },
-        // { 'name.suffix': { $regex: new RegExp(`${split[i]}`, 'i') } },
-        // { 'name.prefix': { $regex: new RegExp(`${split[i]}`, 'i') } },
-      ],
-    });
-
-  }
  
+  if(modif === 'exact'){
+    for (let i in split) {
+      console.log(split[i])
+      ors.push({
+        $nor: [
+          { 'name.text'   : { $regex: split[i], $options: "i" } },
+          { 'name.family' : { $regex: split[i], $options: "i" } },
+          { 'name.given'  : { $regex: split[i], $options: "i" } },
+          { 'name.suffix' : { $regex: split[i], $options: "i" } },
+          { 'name.prefix' : { $regex: split[i], $options: "i" } },
+        ],
+      });
+    }
+  } else {
+    for (let i in split) {
+
+      ors.push({
+        $or: [
+          { 'name.text'   : { $regex: split[i], $options: "i" } },
+          { 'name.family' : { $regex: split[i], $options: "i" } },
+          { 'name.given'  : { $regex: split[i], $options: "i" } },
+          { 'name.suffix' : { $regex: split[i], $options: "i" } },
+          { 'name.prefix' : { $regex: split[i], $options: "i" } },
+        ],
+      });
+    }
+  }
+
   return ors;
 };
+
+let qb = function(target,modif){
+  console.log(target,modif)
+  let queryBuilder = {};
+
+  console.log(queryBuilder[target] )
+  
+
+  return queryBuilder;
+}
 
 /**
  * @name tokenQueryBuilder
@@ -86,6 +106,8 @@ let nameQueryBuilder = function (target) {
 *      query.$or = [tokenQueryBuilder(identifier, 'value', 'identifier'), tokenQueryBuilder(type, 'code', 'type.coding')];
 */
 let tokenQueryBuilder = function (target, type, field, required) {
+  // console.log(target)
+  // console.log(modifiersChecker(target))
   let queryBuilder = {};
   let system = '';
   let value = '';
@@ -906,4 +928,5 @@ module.exports = {
   quantityQueryBuilder,
   compositeQueryBuilder,
   dateQueryBuilder,
+  qb
 };

@@ -1,18 +1,33 @@
-let modifChecker = function (target) {
+const modifiersChecker = function (target) {
   const reg = new RegExp(/([^"]*)(:)([^"]*)/)
   const keyObj = Object.keys(target);
-  const a = Object.entries(keyObj)
+  const keyArr = Object.entries(keyObj)
 
-  const arr = []
+  let newArr = {}
+  let query 
+  let modif
 
-  for(let i=0; i<a.length; i++){
-    if(reg.test(a[i]) == true){
-      arr.push(a[i][1].split(':'))
+  for(let i=0; i<keyArr.length; i++){
+    if(reg.test(keyArr[i]) == true){
+      query = keyArr[i][1].split(':')[0]
+      modif = keyArr[i][1].split(':')[1]
+      newArr[query]=modif
     }
   }
-  return arr
+  return newArr
 }
 
+const modifCheck = function(target){
+  const reg = new RegExp(/([^"]*)(:[^"]*)/)  // ([^"]*)(:[^"]*)(=)([^"]*)
+  regCheck = reg.exec(target)
+  return regCheck
+}
+
+const tokenModifiers = ['', ':not', ':text', ':above', ':below', ':in', ':not-in', ':of-type'];
+
+
 module.exports = {
-  modifChecker
+  modifiersChecker,
+  tokenModifiers,
+  modifCheck
 }

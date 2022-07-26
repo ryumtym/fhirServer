@@ -1,8 +1,10 @@
 ## 進捗
-- stringsQueryBuilder ,nameQueryBuilder => done <br>
+- stringsQueryBuilder, nameQueryBuilder, quantityQueryBuilder => done <br>
 [https://www.hl7.org/fhir/search.html#string]
 
-- dateQueryBuilder -> maybe done
+- dateQueryBuilder -> ``eq,lt,gt``は完了<br> 
+  ``sa,eb,ap``に関してはhapifhirでも使われていないので優先度低 [https://www.hl7.org/fhir/search.html#string]
+
 
 - fhirJsonData for test [https://mongoplayground.net/]
 ```

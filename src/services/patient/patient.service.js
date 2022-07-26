@@ -56,6 +56,8 @@ let buildStu3SearchQuery = (args) => {
 
 
   let gender = args['gender'];
+  let genderNot = args['gender:not'];
+
   let general_practitioner = args['general-practitioner'];
 
   let given = args['given'];
@@ -135,6 +137,17 @@ let buildStu3SearchQuery = (args) => {
 
   if (gender) {
     query.gender = gender;
+    console.log(query)
+  } else if (genderNot){
+    query ={
+      gender: {
+        $not: {
+          $regex: "^" + genderNot +"$",
+          $options: "i"
+        }
+      }
+    }
+    console.log(query)
   }
 
   if (general_practitioner) {
@@ -347,7 +360,7 @@ module.exports.update = (args, { req }) =>
         // save to history
         let history_collection = db.collection(`${COLLECTION.PATIENT}_${base_version}_History`);
 
-        let history_patient = Object.assign(cleaned, { _id: id + cleaned.meta.versionId });
+        let history_patient = Object.assign(cleaned, { _id: id + "-" +cleaned.meta.versionId });
 
         // Insert our patient record to history but don't assign _id
         return history_collection.insertOne(history_patient, (err3) => {

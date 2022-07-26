@@ -4,13 +4,13 @@ const moment = require('moment-timezone');
  * @name stringQueryBuilder
  * @description builds mongo default query for string inputs, no modifiers
  * @param {string} target what we are querying for
- * @param {string} modif modifier
+ * @param {string} modif modifier contains->部分一致, exact->完全一致, それ以外->前方一致
  * @return a mongo regex query
  */
 let stringQueryBuilder = function (target,modif) {
 
   let t2 = target.replace(/[\\(\\)\\-\\_\\+\\=\\/\\.]/g, '\\$&');
-  // return { $not: { $regex:"^" + t2 + "$"} };
+  // return { $not: { $regex:"^" + t2 + "$"} }; //除外検索
 
   if ( modif === 'contains'){
     return { $regex:t2, $options: "i" };

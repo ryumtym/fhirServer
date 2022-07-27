@@ -42,7 +42,7 @@ let buildStu3SearchQuery = (args) => {
   
   // Patient search params
 
-  // console.log(args)
+  console.log(args)
   // console.log([tokenModifiers(args,'active')])
   // let active = tokenModifiers(args,'active'); 
   let birthdate = args['birthdate'];
@@ -94,6 +94,7 @@ let buildStu3SearchQuery = (args) => {
     }
   } else if(nameExact) {
     let queryBuilder = nameQueryBuilder(nameExact ,'exact');
+    // console.log(JSON.stringify(queryBuilder))
     for (let i in queryBuilder) {
       query = queryBuilder[i];
     }
@@ -109,7 +110,7 @@ let buildStu3SearchQuery = (args) => {
 
   if (active) {
     // console.log(modifCheck(args))
-    console.log(active)
+    // console.log(active)
     query.active = active === 'true';
   }
 
@@ -117,7 +118,7 @@ let buildStu3SearchQuery = (args) => {
     query.birthDate = dateQueryBuilder(birthdate, 'date', 'birthDate')
     // console.log(dateQueryBuilder(birthdate, 'date', 'birthDate'))
     // query.birthDate = {'$gt': '1931-05-07T00:00+00:00', '$lt': '1963-05-07T00:00+00:00'}
-    console.log(query.birthDate)
+    // console.log(query.birthDate)
   }
 
   if (death_date) {
@@ -138,15 +139,12 @@ let buildStu3SearchQuery = (args) => {
     query.gender = gender;
     console.log(query)
   } else if (genderNot){
-    query ={
-      gender: {
-        $not: {
-          $regex: "^" + genderNot +"$",
-          $options: "i"
-        }
+    query.gender ={
+      $not: {
+        $regex: "^" + genderNot,
+        $options: "i"
       }
     }
-    console.log(query)
   }
 
   if (general_practitioner) {
@@ -208,7 +206,6 @@ module.exports.search = (args) =>
 
     // console.log(args)
     // console.log(query)
-
 
     // Query our collection for this observation
     collection.find(query, (err, data) => {

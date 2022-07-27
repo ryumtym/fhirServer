@@ -5,7 +5,7 @@
 - dateQueryBuilder -> ``eq,lt,gt``は完了<br> 
   ``sa,eb,ap``に関してはhapifhirでも使われていないので優先度低 [https://www.hl7.org/fhir/search.html#string]
 
-- @asymmetrik/node-fhir-server-core/dist/server/utils/sanitize.utils.js
+_**@asymmetrik/node-fhir-server-core/dist/server/utils/sanitize.utils.js:**_ 
 ```javascript
 const sanitize = require('sanitize-html');
 
@@ -218,8 +218,7 @@ module.exports = {
   sanitizeMiddleware
 };
 ```
-
-- fhirJsonData for test [mongoplayground](https://mongoplayground.net/)
+_**fhirJsonData for test**_ [with mongoplayground](https://mongoplayground.net/)
 ```json
 [
   {

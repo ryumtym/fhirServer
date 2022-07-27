@@ -124,11 +124,16 @@ let findMatchWithName = (name = '', params = {}) => {
   };
 };
 
-const modifiersChecker = function (target,paramsArr) {
+/**
+ * @function modifiersChecker 
+ * @summary Checks for modifiers and returns parameters without modifiers as object type 
+ * example  target = gender:not -> return ['gender'], target = gender -> return['gender']
+ * @param {string} target - searchParams
+ */
+const modifiersChecker = function (target) {
   const reg = new RegExp(/([^"]*)(:)([^"]*)/)
   const keyObj = Object.keys(target);
   const valueObj = Object.values(target)
-
   let newArr = {}
 
   for(let i=0; i<keyObj.length; i++){
@@ -138,14 +143,24 @@ const modifiersChecker = function (target,paramsArr) {
       newArr[keyObj[i]] = valueObj[i]
     }
   }
+  return newArr
 
-  for(let i2 = 0; i2 < Object.keys(newArr).length; i2++){
-    if(paramsArr.includes(Object.keys(newArr)[i2]) === false){
-      return Object.keys(newArr)[i2];
+}
+
+/**
+ * @function searchParameterChecker
+ * @summary Check if the search parameters are equivalent to the values specified by hl7
+ * example  target = gendernot -> return ['gender'], target = gender -> return['gender']
+ * @param {string} target - searchParams
+ * @param {array} paramsArr - Value determined by hl7
+ */
+const searchParameterChecker = function(target, paramsArr){
+  for(let i = 0; i < Object.keys(target).length; i++){
+    if(paramsArr.includes(Object.keys(target)[i]) === false){
+      return Object.keys(target)[i];
     }
   }
 }
-
 
 
 /**
@@ -200,9 +215,10 @@ let sanitizeMiddleware = function (config) {
     } // Save the cleaned arguments on the request for later use, we must only use these later on
 
 
-    if(modifiersChecker(currentArgs,searchParametersArr)){
-      return next(errors.invalidParameter
-        ('Invalid parameter: ' + JSON.stringify(currentArgs) +  '  Valid search parameters for this search are : ' +  searchParametersArr ));
+    if(searchParameterChecker(modifiersChecker(currentArgs), searchParametersArr)){
+      return next(errors.invalidParameter(
+        'Invalid parameter: ' + JSON.stringify(currentArgs) +  '  Valid search parameters for this search are : ' +  searchParametersArr 
+      ));
       // next(errors.invalidParameter('Invalid parameter: ' ))
     }
 

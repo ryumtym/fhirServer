@@ -128,7 +128,7 @@ let findMatchWithName = (name = '', params = {}) => {
  * @function modifiersChecker 
  * @summary Checks for modifiers and returns parameters without modifiers as object type 
  * example  target = gender:not -> return ['gender'], target = gender -> return['gender']
- * @param {string} target - searchParams
+ * @param {object} target - searchParams
  */
 const modifiersChecker = function (target) {
   const reg = new RegExp(/([^"]*)(:)([^"]*)/)
@@ -151,7 +151,7 @@ const modifiersChecker = function (target) {
  * @function searchParameterChecker
  * @summary Check if the search parameters are equivalent to the values specified by hl7
  * example  target = gendernot -> return ['gender'], target = gender -> return['gender']
- * @param {string} target - searchParams
+ * @param {object} target - searchParams
  * @param {array} paramsArr - Value determined by hl7
  */
 const searchParameterChecker = function(target, paramsArr){

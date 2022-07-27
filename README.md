@@ -236,7 +236,7 @@ module.exports = {
 ```
 _**fhirJsonData for test**_ [via mongoplayground](https://mongoplayground.net/)
 ```json
-[
+
   {
     _id: "pat1",
     id: "pat1",
@@ -349,5 +349,5 @@ _**fhirJsonData for test**_ [via mongoplayground](https://mongoplayground.net/)
     resourceType: "Patient",
     
   }
-]
+
 ```

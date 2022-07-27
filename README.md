@@ -235,7 +235,7 @@ module.exports = {
 };
 ```
 _**fhirJsonData for test**_ [via mongoplayground](https://mongoplayground.net/)
-```json
+```bson
 [
   {
     _id: "pat1",

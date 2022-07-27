@@ -42,7 +42,6 @@ let buildStu3SearchQuery = (args) => {
   
   // Patient search params
 
-
   // console.log(args)
   // console.log([tokenModifiers(args,'active')])
   // let active = tokenModifiers(args,'active'); 
@@ -88,7 +87,7 @@ let buildStu3SearchQuery = (args) => {
     for (let i in queryBuilder) {
       query = queryBuilder[i];
     }
-  } else if(nameContains){
+  } else if(nameContains) {
     let queryBuilder = nameQueryBuilder(nameContains, "contains");
     for (let i in queryBuilder) {
       query = queryBuilder[i];
@@ -175,7 +174,6 @@ let buildStu3SearchQuery = (args) => {
   }
 
 
-
   // TODO:  mongo doesn't natively support fuzzy but there are ways to do it
   // or use Elastic?
   //
@@ -197,7 +195,6 @@ let buildStu3SearchQuery = (args) => {
 module.exports.search = (args) =>
   new Promise((resolve, reject) => {
     logger.info('Patient >>> search');
-
     let { base_version } = args;
     let query = {};
     
@@ -210,7 +207,7 @@ module.exports.search = (args) =>
     let Patient = getPatient(base_version);
 
     // console.log(args)
-    // console.log(JSON.stringify(query))
+    // console.log(query)
 
 
     // Query our collection for this observation

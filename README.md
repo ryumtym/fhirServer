@@ -218,7 +218,7 @@ module.exports = {
   sanitizeMiddleware
 };
 ```
-_**fhirJsonData for test**_ [with mongoplayground](https://mongoplayground.net/)
+_**fhirJsonData for test**_ [via mongoplayground](https://mongoplayground.net/)
 ```json
 [
   {

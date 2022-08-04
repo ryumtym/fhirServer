@@ -1,5 +1,55 @@
 const moment = require('moment-timezone');
 
+
+let _lastUpdatedQueryBuilder = function (target) {
+
+  const reg =/^(\D{2})?(\d{4})(-\d{2})?(-\d{2})?(?:(T\d{2}:\d{2})(:\d{2})?)?(Z|(\+|-)(\d{2}):(\d{2}))?$/
+  const match = target.match(reg)//正規表現でグループ化　https://regex101.com/ testString -> 1963-05-07T00:00+00:00
+  let prefix = "eq"
+
+  console.log(match)
+
+  let v = ""
+  for(let i = 2; i< match.length; i++){
+    if(match[i]){
+      v = v + match[i]
+    }
+  }
+
+  if(match[1] == prefix || !match[1]){ //修飾子がeq,もしくは無い場合
+    // return {'meta.lastUpdated':{$gt: datetime_utc, $lt: moment(datetime_utc).endOf('day').format()}}
+    return{"meta.lastUpdated": {$regex: "^" + v, $options: "i"}}
+
+  } else if(match[1]) { //修飾子がeq以外で存在する場合
+    prefix = match[1]
+    switch (prefix) {
+      case 'lt':
+      qB = {'meta.lastUpdated':{ $lt: v} }
+      case 'gt':
+      qB = {'meta.lastUpdated':{ $gt: v} } 
+    };
+    return qB
+  }
+
+
+  // let moment_dt = moment.utc(v)
+  // let datetime_utc = moment_dt.utc().format('YYYY-MM-DDTHH:mm:ssZ');
+  // let path = 'meta.lastUpdated'
+  // let qB = {}    
+};
+
+
+
+
+  // if(!match[5]){
+
+
+  // }
+
+
+
+
+
 /**
  * @name stringQueryBuilder
  * @description builds mongo default query for string inputs, no modifiers
@@ -328,7 +378,7 @@ let getDateFromNum = function (days) {
 //  UNLESS, the search parameter is teh exact same as what is stored.  So, if something is stored as 2016-06-03T05:00-03:00, then the search parameter must be 2016-06-03T05:00-03:00
 //It's important to make sure formatting is right, dont forget a leading 0 when dealing with single digit times.
 let dateQueryBuilder = function (date, type, path) {
-  let regex = /^(\D{2})?(\d{4})(-\d{2})?(-\d{2})?(?:(T\d{2}:\d{2})(:\d{2})?)?(Z|(\+|-)(\d{2}):(\d{2}))?$/;
+  let regex = /^(\D{2})?(\d{4})(-\d{2})?(-\d{2})?(?:(T\d{2}:\d{2})(:\d{2})?)?(Z|(\+|-|\s)(\d{2}):(\d{2}))?$/;
   let match = date.match(regex);
   let str = '';
   let toRet = [];
@@ -344,9 +394,11 @@ let dateQueryBuilder = function (date, type, path) {
   }else{
     dateArr = [date]
   }
+  console.log(match)
 
   if(dateArr.length === 1){
     if (match && match.length >= 1) {
+      
         if (match[1]) {
           // replace prefix with mongo specific comparators
           prefix = '$' + match[1].replace('ge', 'gte').replace('le', 'lte');
@@ -565,11 +617,24 @@ let dateQueryBuilder = function (date, type, path) {
               return toRet;
             }
             return {
-              $regex: new RegExp(
-                '^' + '(?:' + str + ')|(?:' + match[0].replace('+', '\\+') + ')|(?:' + tempFill,
-                'i'
-              ),
+              [path]:{
+                $regex: '^' + '(?:' + str + ')|(?:' + match[0].replace('+', '\\+') + ')|(?:' + tempFill,
+                $options: "i"
+              }
             };
+
+          } else{
+            if(match[5]){
+              for (let i = 2; i < 7; i++) {
+                str = str + match[i];
+              }
+              if (match[9]) {
+                str = str + "+" +  match[9] + ":" + match[10]
+              }
+            }
+            // console.log(str)
+
+            return {[path]: {[`$${match[1]}`]: str}}
           }
         }
       }
@@ -947,4 +1012,5 @@ module.exports = {
   quantityQueryBuilder,
   compositeQueryBuilder,
   dateQueryBuilder,
+  _lastUpdatedQueryBuilder
 };

@@ -19,6 +19,7 @@ const {
   addressQueryBuilder,
   nameQueryBuilder,
   dateQueryBuilder,
+  _lastUpdatedQueryBuilder,
 } = require('../../utils/querybuilder.util');
 
 let getPatient = (base_version) => {
@@ -69,6 +70,8 @@ let buildStu3SearchQuery = (args) => {
   let nameContains = args['name:contains'];
   let nameExact = args['name:exact'];
 
+  let organization = args['organization']
+
   let active = args['active']
 
   // const keyObj = Object.keys(args);
@@ -108,6 +111,13 @@ let buildStu3SearchQuery = (args) => {
     query.id = _id;
   }
 
+  if(_lastUpdated){
+    query = dateQueryBuilder(_lastUpdated, 'dateTime','meta.lastUpdated')
+    // query = _lastUpdatedQueryBuilder(_lastUpdated)
+    console.log(query)
+  }
+
+
   if (active) {
     // console.log(modifCheck(args))
     // console.log(active)
@@ -118,7 +128,7 @@ let buildStu3SearchQuery = (args) => {
     query.birthDate = dateQueryBuilder(birthdate, 'date', 'birthDate')
     // console.log(dateQueryBuilder(birthdate, 'date', 'birthDate'))
     // query.birthDate = {'$gt': '1931-05-07T00:00+00:00', '$lt': '1963-05-07T00:00+00:00'}
-    // console.log(query.birthDate)
+    console.log(query.birthDate)
   }
 
   if (death_date) {
@@ -171,6 +181,13 @@ let buildStu3SearchQuery = (args) => {
     }
   }
 
+  if (organization) {
+    let queryBuilder = referenceQueryBuilder(organization, 'managingOrganization.reference');
+    console.log(queryBuilder)
+    for (let i in queryBuilder) {
+      query[i] = queryBuilder[i];
+    }
+  }
 
   // TODO:  mongo doesn't natively support fuzzy but there are ways to do it
   // or use Elastic?
@@ -197,7 +214,7 @@ module.exports.search = (args) =>
     let query = {};
     
     query = buildStu3SearchQuery(args);
-
+    
 
     // Grab an instance of our DB and collection
     let db = globals.get(CLIENT_DB);
@@ -221,8 +238,11 @@ module.exports.search = (args) =>
         patients.forEach(function (element, i, returnArray) {
           returnArray[i] = new Patient(element);
         });
+        // console.log(patients)
+        // resolve({"entry":[patients]});
         resolve(patients);
       });
+
     });
   });
 
@@ -267,6 +287,7 @@ module.exports.create = (args, { req }) =>
 
     // If no resource ID was provided, generate one.
     let id = getUuid(patient);
+    console.log(id)
 
     // Create the resource's metadata
     let Meta = getMeta(base_version);

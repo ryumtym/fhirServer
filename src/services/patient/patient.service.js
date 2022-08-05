@@ -19,7 +19,8 @@ const {
   addressQueryBuilder,
   nameQueryBuilder,
   dateQueryBuilder,
-  _lastUpdatedQueryBuilder,
+  dateQB,
+  test
 } = require('../../utils/querybuilder.util');
 
 let getPatient = (base_version) => {
@@ -44,6 +45,7 @@ let buildStu3SearchQuery = (args) => {
   // Patient search params
 
   console.log(args)
+
   // console.log([tokenModifiers(args,'active')])
   // let active = tokenModifiers(args,'active'); 
   let birthdate = args['birthdate'];
@@ -73,14 +75,6 @@ let buildStu3SearchQuery = (args) => {
   let organization = args['organization']
 
   let active = args['active']
-
-  // const keyObj = Object.keys(args);
-  // console.log(modifiersChecker(args))
-  // console.log(modifCheck(keyObj[1]))
-  // const v = Object.keys(modifiersChecker(args))
-  // var stringifiedObj = v.map(x=>x);
-  // console.log(stringifiedObj)
-  // console.log(tokenModifiers(stringifiedObj))
 
   let query = {};
   let ors = [];
@@ -112,8 +106,7 @@ let buildStu3SearchQuery = (args) => {
   }
 
   if(_lastUpdated){
-    query = dateQueryBuilder(_lastUpdated, 'dateTime','meta.lastUpdated')
-    // query = _lastUpdatedQueryBuilder(_lastUpdated)
+    query =  dateQB(_lastUpdated,'meta.lastUpdated')
     console.log(query)
   }
 

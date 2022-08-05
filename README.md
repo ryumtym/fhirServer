@@ -1,5 +1,10 @@
 ## 進捗
-- stringsQueryBuilder, nameQueryBuilder, quantityQueryBuilder => done <br>
+| Summary| :heavy_check_mark:|
+| :------| :-- | 
+| Parameters for all resources   | _id, _lastUpdated|
+| Search Parameter Types    | stringsQueryBuilder, nameQueryBuilder, quantityQueryBuilder|
+
+
 [https://www.hl7.org/fhir/search.html#string]
 
 - dateQueryBuilder -> ``eq,lt,gt``は完了<br> 

@@ -1,52 +1,74 @@
 const moment = require('moment-timezone');
 
 
-let _lastUpdatedQueryBuilder = function (target) {
-
-  const reg =/^(\D{2})?(\d{4})(-\d{2})?(-\d{2})?(?:(T\d{2}:\d{2})(:\d{2})?)?(Z|(\+|-)(\d{2}):(\d{2}))?$/
+/**
+ * @name dateQB
+ * @description _lastUpdated needs any dateformat pattern. most likely yyyy, yyyymm, yyyymmdd, ltyyyy, gtyyyymm, etc... so frustrated!
+ * @param {string} target what we are querying for
+ * @param {string} path JSON path 
+ * @return a mongo regex query
+ */
+let dateQB = function (target,path) {
+  const reg = /^(\D{2})?(\d{4})(-\d{2})?(-\d{2})?(?:(T\d{2}:\d{2})(:\d{2})?)?(Z|(\+|-|\s)(\d{2}):(\d{2}))?$/
   const match = target.match(reg)//正規表現でグループ化　https://regex101.com/ testString -> 1963-05-07T00:00+00:00
+
+  const hasEmpty = /\s/;
+  const hasComma = ','
+
+  const arr = {}
+  let dateArr = []
   let prefix = "eq"
+  let str = ""
+  
+  if(target.match(hasComma)){ //gt&ltの組み合わせ用に配列に格納
+    dateArr = target.split(hasComma)
+  }else{
+    dateArr = [target]
+  }
 
-  console.log(match)
-
-  let v = ""
-  for(let i = 2; i< match.length; i++){
-    if(match[i]){
-      v = v + match[i]
+  if(dateArr.length === 1){
+    const removeModif = target.replace(/(^.[a-zA-Z])/,"") //gt20220303 -> 20220303
+    const formatSec = removeModif.replace(hasEmpty, '+') //2022-08-01T04:33:41 00:00 -> 2022-08-01T04:33:41+00:00
+    
+    if(match[1] && match[1] !== prefix){
+      prefix = `$${match[1]}`
+      return  {
+        [path]: {
+          [prefix]: formatSec
+        }
+      }
+    } else if( !match[1] || match[1] === prefix) {
+      if(!match[5]){
+        return  {
+          [path]: {
+            $regex: removeModif
+          }
+        }
+      } else if(match[9]) {
+        return  {
+          [path]: formatSec
+        }
+      }
     }
+  } else {
+    dateArr.forEach(elm => {
+      matchs = elm.match(reg)
+      prefix = matchs[1]
+      for (let i2 = 2; i2 < 7; i2++) {
+          if (matchs[`${i2}`]) {
+              str = str + matchs[`${i2}`];
+          }
+      }
+      
+      const moment_dt = moment.utc(str);
+      // convert to format that mongo uses to store
+      const datetime_utc = moment_dt.utc().format('YYYY-MM-DDTHH:mm:ssZ');
+      str = ""
+      Object.assign(arr, {[`$${prefix}`] : datetime_utc})
+    })
   }
-
-  if(match[1] == prefix || !match[1]){ //修飾子がeq,もしくは無い場合
-    // return {'meta.lastUpdated':{$gt: datetime_utc, $lt: moment(datetime_utc).endOf('day').format()}}
-    return{"meta.lastUpdated": {$regex: "^" + v, $options: "i"}}
-
-  } else if(match[1]) { //修飾子がeq以外で存在する場合
-    prefix = match[1]
-    switch (prefix) {
-      case 'lt':
-      qB = {'meta.lastUpdated':{ $lt: v} }
-      case 'gt':
-      qB = {'meta.lastUpdated':{ $gt: v} } 
-    };
-    return qB
-  }
-
-
-  // let moment_dt = moment.utc(v)
-  // let datetime_utc = moment_dt.utc().format('YYYY-MM-DDTHH:mm:ssZ');
-  // let path = 'meta.lastUpdated'
-  // let qB = {}    
+  return {[path]:arr}
 };
-
-
-
-
-  // if(!match[5]){
-
-
-  // }
-
-
 
 
 
@@ -631,8 +653,15 @@ let dateQueryBuilder = function (date, type, path) {
               if (match[9]) {
                 str = str + "+" +  match[9] + ":" + match[10]
               }
+            } else {
+              for (let i = 2; i < 5; i++) {
+                //add up the date parts in a string, done to make sure to update anything if timezone changed anything
+                if (match[i]) {
+                  str = str + match[i];
+                }
+              }
             }
-            // console.log(str)
+            console.log(str)
 
             return {[path]: {[`$${match[1]}`]: str}}
           }
@@ -1012,5 +1041,5 @@ module.exports = {
   quantityQueryBuilder,
   compositeQueryBuilder,
   dateQueryBuilder,
-  _lastUpdatedQueryBuilder
+  dateQB
 };

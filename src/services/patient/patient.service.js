@@ -38,16 +38,23 @@ let buildStu3SearchQuery = (args) => {
   let { _content, _format, _id, _lastUpdated, _profile, _query, _security, _tag } = args;
 
   // Search Result params
-  let { _INCLUDE, _REVINCLUDE, _SORT, _COUNT, _SUMMARY, _ELEMENTS, _CONTAINED, _CONTAINEDTYPED } =
+  let { _INCLUDE, _REVINCLUDE, _SORT, _COUNT, _SUMMARY, _elements, _CONTAINED, _CONTAINEDTYPED } =
     args;
 
   
   // Patient search params
 
-  console.log(args)
+  // console.log(args)
 
-  // console.log([tokenModifiers(args,'active')])
-  // let active = tokenModifiers(args,'active'); 
+  let active = args['active'];
+  let activeNot = args['active:not'];
+
+  let address = args['address'];
+
+  let addressCity = args['address-city'];
+  let addressCityContains = args['address-city:contains'];
+  let addressCityExact = args['address-city:exact'];
+
   let birthdate = args['birthdate'];
   let death_date = args['death-date'];
 
@@ -74,28 +81,11 @@ let buildStu3SearchQuery = (args) => {
 
   let organization = args['organization']
 
-  let active = args['active']
+
 
   let query = {};
   let ors = [];
 
-  if (name) {
-    let queryBuilder = nameQueryBuilder(name, "");
-    for (let i in queryBuilder) {
-      query = queryBuilder[i];
-    }
-  } else if(nameContains) {
-    let queryBuilder = nameQueryBuilder(nameContains, "contains");
-    for (let i in queryBuilder) {
-      query = queryBuilder[i];
-    }
-  } else if(nameExact) {
-    let queryBuilder = nameQueryBuilder(nameExact ,'exact');
-    // console.log(JSON.stringify(queryBuilder))
-    for (let i in queryBuilder) {
-      query = queryBuilder[i];
-    }
-  }
 
   if (ors.length !== 0) {
     query.$and = ors;
@@ -107,26 +97,36 @@ let buildStu3SearchQuery = (args) => {
 
   if(_lastUpdated){
     query =  dateQB(_lastUpdated,'meta.lastUpdated')
-    console.log(query)
+    // console.log(query)
   }
 
+  if (active) { 
+    query.active =  {$eq: JSON.parse(active.toLowerCase())};
+  } else if (activeNot){
+    query.active =  {$ne: JSON.parse(activeNot.toLowerCase())}
+  }
 
-  if (active) {
-    // console.log(modifCheck(args))
-    // console.log(active)
-    query.active = active === 'true';
+  if(address){
+    let queryBuilder = addressQueryBuilder(address);
+    for (let i in queryBuilder) {
+      query = queryBuilder[i];
+    }
+  }
+
+  if (addressCity) {
+    query['address.city'] = stringQueryBuilder(addressCity, "");
+  } else if (addressCityContains){
+    query['address.city'] = stringQueryBuilder(addressCityContains, "");
+  } else if (addressCityExact){
+    query['address.city'] = stringQueryBuilder(addressCityExact, "");
   }
 
   if (birthdate) {
     query.birthDate = dateQueryBuilder(birthdate, 'date', 'birthDate')
-    // console.log(dateQueryBuilder(birthdate, 'date', 'birthDate'))
-    // query.birthDate = {'$gt': '1931-05-07T00:00+00:00', '$lt': '1963-05-07T00:00+00:00'}
-    console.log(query.birthDate)
   }
 
   if (death_date) {
-    query.deceasedDateTime = dateQueryBuilder(death_date, 'date', 'deceasedDateTime');
-    console.log(query.deceasedDateTime)
+    query= dateQB(death_date, 'deceasedDateTime');
   }
 
 
@@ -139,15 +139,9 @@ let buildStu3SearchQuery = (args) => {
   } 
 
   if (gender) {
-    query.gender = gender;
-    console.log(query)
+    query.gender = { $regex: "^" + gender, $options: "i"}
   } else if (genderNot){
-    query.gender ={
-      $not: {
-        $regex: "^" + genderNot,
-        $options: "i"
-      }
-    }
+    query.gender = { $not: { $regex: "^" + genderNot, $options: "i"}}
   }
 
   if (general_practitioner) {
@@ -157,6 +151,7 @@ let buildStu3SearchQuery = (args) => {
       query[i] = queryBuilder[i];
     }
   }
+
 
   if (given) {
     query['name.given'] = stringQueryBuilder(given, "");
@@ -182,13 +177,30 @@ let buildStu3SearchQuery = (args) => {
     }
   }
 
+
+  if (name) {
+    let queryBuilder = nameQueryBuilder(name, "");
+    for (let i in queryBuilder) {
+      query = queryBuilder[i];
+    }
+  } else if(nameContains) {
+    let queryBuilder = nameQueryBuilder(nameContains, "contains");
+    for (let i in queryBuilder) {
+      query = queryBuilder[i];
+    }
+  } else if(nameExact) {
+    let queryBuilder = nameQueryBuilder(nameExact ,'exact');
+    // console.log(JSON.stringify(queryBuilder))
+    for (let i in queryBuilder) {
+      query = queryBuilder[i];
+    }
+  }
   // TODO:  mongo doesn't natively support fuzzy but there are ways to do it
   // or use Elastic?
   //
   // if (phonetic) {
   //
   // }
-
 
   return query;
 };
@@ -205,7 +217,6 @@ module.exports.search = (args) =>
     logger.info('Patient >>> search');
     let { base_version } = args;
     let query = {};
-    
     query = buildStu3SearchQuery(args);
     
 
@@ -215,28 +226,21 @@ module.exports.search = (args) =>
     let Patient = getPatient(base_version);
 
     // console.log(args)
-    // console.log(query)
+    console.log(query)
 
     // Query our collection for this observation
-    collection.find(query, (err, data) => {
-      if (err) {
-        logger.error('Error with Patient.search: ', err);
-        return reject(err);
-      }
-
-      // console.log(collection.find({ query : JSON.stringify({ $gt :  1991-05-07, $lt : 1999-02-03})}));
-
-      // Patient is a patient cursor, pull documents out before resolving
-      data.toArray().then((patients) => {
+    collection.find(query).toArray().then(
+      (patients) => {
         patients.forEach(function (element, i, returnArray) {
           returnArray[i] = new Patient(element);
         });
-        // console.log(patients)
-        // resolve({"entry":[patients]});
         resolve(patients);
-      });
-
-    });
+      },
+      err => {
+        logger.error('Error with Patient.search: ', err);
+        return reject(err);
+      }
+    )
   });
 
 module.exports.searchById = (args) =>

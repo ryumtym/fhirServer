@@ -1,8 +1,21 @@
 ## 進捗
-| Summary| :heavy_check_mark:|
-| :------| :-- | 
-| Parameters for all resources   | _id, _lastUpdated|
-| Search Parameter Types    | stringsQueryBuilder, nameQueryBuilder, quantityQueryBuilder|
+| Summary     | modif :heavy_check_mark:| example|
+| :------     | :-- | :--|
+| _id         |               | ?_id={id}           |
+| _lastUpdated| `eq` `gt` `lt`| ?_lastUpdated=2021  |
+| active      |`:not`         | ?active:not=true    |
+| address     | `:contains` `:exact`| ?address=japan|
+| address.City| `:contains` `:exact`| ?address-city=PleasantVille|
+| birthDate   | `eq` `gt` `lt`| ?birthdate=gt2021&birthdate=lt2022|
+| deathDate   | `eq` `gt` `lt`| ?death-date=2015-01-01T00:00:00+00:00|
+| gender      | `:not`| ?gender:not=unknown|
+| general_practitioner||
+| identifier||
+| name        | `:contains` `:exact`|?name:contains=du|
+| name.family | `:contains` `:exact`|
+| name.given  | `:contains` `:exact`|
+| organization||
+
 
 
 [https://www.hl7.org/fhir/search.html#string]

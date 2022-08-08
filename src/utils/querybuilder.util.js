@@ -3,7 +3,7 @@ const moment = require('moment-timezone');
 
 /**
  * @name dateQB
- * @description _lastUpdated needs any dateformat pattern. most likely yyyy, yyyymm, yyyymmdd, ltyyyy, gtyyyymm, etc... so frustrated!
+ * @description _lastUpdated has any dateformat pattern. most likely yyyy, yyyymm, yyyymmdd, ltyyyy, gtyyyymm, etc... so frustrated!
  * @param {string} target what we are querying for
  * @param {string} path JSON path 
  * @return a mongo regex query
@@ -12,8 +12,8 @@ let dateQB = function (target,path) {
   const reg = /^(\D{2})?(\d{4})(-\d{2})?(-\d{2})?(?:(T\d{2}:\d{2})(:\d{2})?)?(Z|(\+|-|\s)(\d{2}):(\d{2}))?$/
   const match = target.match(reg)//正規表現でグループ化　https://regex101.com/ testString -> 1963-05-07T00:00+00:00
 
-  const hasEmpty = /\s/;
-  const hasComma = ','
+  const hasEmpty = /\s/; //line30
+  const hasComma = ',' //line23 targetが複数の場合
 
   const arr = {}
   let dateArr = []
@@ -26,7 +26,7 @@ let dateQB = function (target,path) {
     dateArr = [target]
   }
 
-  if(dateArr.length === 1){
+  if(dateArr.length === 1){ 
     const removeModif = target.replace(/(^.[a-zA-Z])/,"") //gt20220303 -> 20220303
     const formatSec = removeModif.replace(hasEmpty, '+') //2022-08-01T04:33:41 00:00 -> 2022-08-01T04:33:41+00:00
     
@@ -41,6 +41,7 @@ let dateQB = function (target,path) {
       if(!match[5]){
         return  {
           [path]: {
+            // $regex: "^" + removeModif
             $regex: removeModif
           }
         }
@@ -107,12 +108,12 @@ let addressQueryBuilder = function (target) {
   for (let index in totalSplit) {
     ors.push({
       $or: [
-        { 'address.line': { $regex: new RegExp(`${totalSplit[index]}`, 'i') } },
-        { 'address.city': { $regex: new RegExp(`${totalSplit[index]}`, 'i') } },
-        { 'address.district': { $regex: new RegExp(`${totalSplit[index]}`, 'i') } },
-        { 'address.state': { $regex: new RegExp(`${totalSplit[index]}`, 'i') } },
-        { 'address.postalCode': { $regex: new RegExp(`${totalSplit[index]}`, 'i') } },
-        { 'address.country': { $regex: new RegExp(`${totalSplit[index]}`, 'i') } },
+        { 'address.line': { $regex: "^" + totalSplit[index], $options: "i" } },
+        { 'address.city': { $regex: "^" + totalSplit[index], $options: "i" } },
+        { 'address.district': { $regex: "^" + totalSplit[index], $options: "i" } },
+        { 'address.state': { $regex: "^" + totalSplit[index], $options: "i" } },
+        { 'address.postalCode': { $regex: "^" + totalSplit[index], $options: "i" } },
+        { 'address.country': { $regex: "^" + totalSplit[index], $options: "i" } },
       ],
     });
   }
@@ -410,13 +411,13 @@ let dateQueryBuilder = function (date, type, path) {
   let dateArr = []
   const arr = {}
   const regex2 = ','
-
+  console.log(match)
   if(date.match(regex2)){
     dateArr = date.split(',')
   }else{
     dateArr = [date]
   }
-  console.log(match)
+  // console.log(match)
 
   if(dateArr.length === 1){
     if (match && match.length >= 1) {
@@ -437,12 +438,7 @@ let dateQueryBuilder = function (date, type, path) {
               }
             }
             //below we have to check if the search gave more information than what is actually stored
-            return {
-              $regex: new RegExp(
-                '^' + '(?:' + str + ')|(?:' + pArr[0] + ')|(?:' + pArr[1] + ')|(?:' + pArr[2] + ')',
-                'i'
-              ),
-            };
+            return{"$regex": "^" + str}
           } else {
             for (let i = 2; i < 10; i++) {
                 if (match[`${i}`]) {
@@ -638,6 +634,7 @@ let dateQueryBuilder = function (date, type, path) {
               ];
               return toRet;
             }
+
             return {
               [path]:{
                 $regex: '^' + '(?:' + str + ')|(?:' + match[0].replace('+', '\\+') + ')|(?:' + tempFill,
@@ -684,240 +681,8 @@ let dateQueryBuilder = function (date, type, path) {
     })
   }
 
-
-  return arr
-
-  // if (match && match.length >= 1) {
-  //   if (match[1]) {
-  //     // replace prefix with mongo specific comparators
-  //     prefix = '$' + match[1].replace('ge', 'gte').replace('le', 'lte');
-  //   }
-  //   if (type === 'date') {
-  //     //if its just a date, we don't have to worry about time components
-  //     if (prefix === '$eq') {
-  //       //add parts of date that are available
-  //       for (let i = 2; i < 5; i++) {
-  //         //add up the date parts in a string
-  //         if (match[i]) {
-  //           str = str + match[i];
-  //           pArr[i - 2] = str + '$';
-  //         }
-  //       }
-  //       //below we have to check if the search gave more information than what is actually stored
-  //       return {
-  //         $regex: new RegExp(
-  //           '^' + '(?:' + str + ')|(?:' + pArr[0] + ')|(?:' + pArr[1] + ')|(?:' + pArr[2] + ')',
-  //           'i'
-  //         ),
-  //       };
-  //     } else {
-  //       for (let i = 2; i < 10; i++) {
-  //           if (match[`${i}`]) {
-  //               str = str + match[`${i}`];
-  //           }
-  //       }
-  //       const moment_dt = moment.utc(str);
-  //       // convert to format that mongo uses to store
-  //       const datetime_utc = moment_dt.utc().format('YYYY-MM-DDTHH:mm:ssZ');
-  //       return {
-  //           [prefix]: datetime_utc
-  //       };
-  //   }
-  //   }
-
-  //   if (type === 'dateTime' || type === 'instant' || type === 'period' || type === 'timing') {
-  //     //now we have to worry about hours, minutes, seconds, and TIMEZONES
-  //     if (prefix === '$eq') {
-  //       if (match[5]) {
-  //         //to see if time is included
-  //         for (let i = 2; i < 6; i++) {
-  //           str = str + match[i];
-  //           if (i === 5) {
-  //             pArr[i - 2] = str + 'Z?$';
-  //           } else {
-  //             pArr[i - 2] = str + '$';
-  //           }
-  //         }
-  //         if (type === 'instant') {
-  //           if (match[6]) {
-  //             //to check if seconds were included or not
-  //             str = str + match[6];
-  //           }
-  //         }
-  //         if (match[9]) {
-  //           // we know there is a +|-hh:mm at the end
-  //           let mins = 0;
-  //           let hrs = 0;
-  //           if (match[8] === '+') {
-  //             //time is ahead of UTC so we must subtract
-  //             let hM = match[5].split(':');
-  //             hM[0] = hM[0].replace('T', '');
-  //             mins = Number(hM[1]) - Number(match[10]);
-  //             hrs = Number(hM[0]) - Number(match[9]);
-  //             if (mins < 0) {
-  //               //when we subtract the minutes and go below zero, we need to remove an hour
-  //               mins = mod(mins, 60);
-  //               hrs = hrs - 1;
-  //             }
-  //             if (hrs < 0) {
-  //               //when hours goes below zero, we have to adjust the date
-  //               hrs = mod(hrs, 24);
-  //               str = getDateFromNum(
-  //                 getDayNum(
-  //                   Number(match[2]),
-  //                   Number(match[3].replace('-', '')),
-  //                   Number(match[4].replace('-', ''))
-  //                 ) - 1
-  //               );
-  //             } else {
-  //               str = getDateFromNum(
-  //                 getDayNum(
-  //                   Number(match[2]),
-  //                   Number(match[3].replace('-', '')),
-  //                   Number(match[4].replace('-', ''))
-  //                 )
-  //               );
-  //             }
-  //           } else {
-  //             //time is behind UTC so we add
-  //             let hM = match[5].split(':');
-  //             hM[0] = hM[0].replace('T', '');
-  //             mins = Number(hM[1]) + Number(match[10]);
-  //             hrs = Number(hM[0]) + Number(match[9]);
-  //             if (mins > 59) {
-  //               //if we go above 59, we need to increase hours
-  //               mins = mod(mins, 60);
-  //               hrs = hrs + 1;
-  //             }
-  //             if (hrs > 23) {
-  //               //if we go above 23 hours, new day
-  //               hrs = mod(hrs, 24);
-  //               str = getDateFromNum(
-  //                 getDayNum(
-  //                   Number(match[2]),
-  //                   Number(match[3].replace('-', '')),
-  //                   Number(match[4].replace('-', ''))
-  //                 ) + 1
-  //               );
-  //             } else {
-  //               str = getDateFromNum(
-  //                 getDayNum(
-  //                   Number(match[2]),
-  //                   Number(match[3].replace('-', '')),
-  //                   Number(match[4].replace('-', ''))
-  //                 )
-  //               );
-  //             }
-  //           }
-  //           pArr[5] = str + '$';
-  //           str = str + 'T' + ('0' + hrs).slice(-2) + ':' + ('0' + mins).slice(-2); //proper formatting for leading 0's
-  //           let match2 = str.match(/^(\d{4})(-\d{2})?(-\d{2})(?:(T\d{2}:\d{2})(:\d{2})?)?/);
-  //           if (match2 && match2.length >= 1) {
-  //             pArr[0] = match2[1] + '$'; //YYYY
-  //             pArr[1] = match2[1] + match2[2] + '$'; //YYYY-MM
-  //             pArr[2] = match2[1] + match2[2] + match2[3] + '$'; //YYYY-MM-DD
-  //             pArr[3] =
-  //               match2[1] +
-  //               match2[2] +
-  //               match2[3] +
-  //               'T' +
-  //               ('0' + hrs).slice(-2) +
-  //               ':' +
-  //               ('0' + mins).slice(-2) +
-  //               'Z?$';
-  //           }
-  //           if (match[6]) {
-  //             //to check if seconds were included or not
-  //             pArr[4] = str + ':' + ('0' + match[6]).slice(-2) + 'Z?$';
-  //             str = str + match[6];
-  //           }
-  //           if (!pArr[4]) {
-  //             //fill empty spots in pArr with ^$ to make sure it can't just match with nothing
-  //             pArr[4] = '^$';
-  //           }
-  //         }
-  //       } else {
-  //         for (let i = 2; i < 5; i++) {
-  //           //add up the date parts in a string, done to make sure to update anything if timezone changed anything
-  //           if (match[i]) {
-  //             str = str + match[i];
-  //             pArr[i - 2] = str + '$';
-  //           }
-  //         }
-  //       }
-  //       let regPoss = {
-  //         $regex: new RegExp(
-  //           '^' +
-  //             '(?:' +
-  //             pArr[0] +
-  //             ')|(?:' +
-  //             pArr[1] +
-  //             ')|(?:' +
-  //             pArr[2] +
-  //             ')|(?:' +
-  //             pArr[3] +
-  //             ')|(?:' +
-  //             pArr[4] +
-  //             ')'
-  //         ),
-  //       };
-  //       if (type === 'period') {
-  //         str = str + 'Z';
-  //         let pS = path + '.start';
-  //         let pE = path + '.end';
-  //         toRet = [
-  //           {
-  //             $and: [
-  //               { [pS]: { $lte: str } },
-  //               { $or: [{ [pE]: { $gte: str } }, { [pE]: regPoss }] },
-  //             ],
-  //           },
-  //           { $and: [{ [pS]: { $lte: str } }, { [pE]: undefined }] },
-  //           { $and: [{ $or: [{ [pE]: { $gte: str } }, { [pE]: regPoss }] }, { [pS]: undefined }] },
-  //         ];
-  //         return toRet;
-  //       }
-  //       let tempFill = pArr.toString().replace(/,/g, ')|(?:') + ')'; //turning the pArr to a string that can be used as a regex
-  //       if (type === 'timing') {
-  //         let pDT = path + '.event';
-  //         let pBPS = path + '.repeat.boundsPeriod.start';
-  //         let pBPE = path + '.repeat.boundsPeriod.end';
-  //         toRet = [
-  //           {
-  //             [pDT]: {
-  //               $regex: new RegExp(
-  //                 '^' + '(?:' + str + ')|(?:' + match[0].replace('+', '\\+') + ')|(?:' + tempFill,
-  //                 'i'
-  //               ),
-  //             },
-  //           },
-  //           {
-  //             $and: [
-  //               { [pBPS]: { $lte: str } },
-  //               { $or: [{ [pBPE]: { $gte: str } }, { [pBPE]: regPoss }] },
-  //             ],
-  //           },
-  //           { $and: [{ [pBPS]: { $lte: str } }, { [pBPE]: undefined }] },
-  //           {
-  //             $and: [
-  //               { $or: [{ [pBPE]: { $gte: str } }, { [pBPE]: regPoss }] },
-  //               { [pBPS]: undefined },
-  //             ],
-  //           },
-  //         ];
-  //         return toRet;
-  //       }
-  //       return {
-  //         $regex: new RegExp(
-  //           '^' + '(?:' + str + ')|(?:' + match[0].replace('+', '\\+') + ')|(?:' + tempFill,
-  //           'i'
-  //         ),
-  //       };
-  //     }
-  //   }
-  // }else{
-  //   console.log("out of range line286")
-  // }
+  // return {[path]:arr}
+    return arr
 };
 /**
  * @name compositeQueryBuilder

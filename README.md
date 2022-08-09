@@ -1,21 +1,29 @@
 ## 進捗
-| Summary     | modif :heavy_check_mark:| example|
-| :------     | :-- | :--|
-| _id         |               | ?_id={id}           |
-| _lastUpdated| `eq` `gt` `lt`| ?_lastUpdated=2021  |
-| active      |`:not`         | ?active:not=true    |
-| address     | `:contains` `:exact`| ?address=japan|
-| address.City| `:contains` `:exact`| ?address-city=PleasantVille|
-| birthDate   | `eq` `gt` `lt`| ?birthdate=gt2021&birthdate=lt2022|
-| deathDate   | `eq` `gt` `lt`| ?death-date=2015-01-01T00:00:00+00:00|
-| gender      | `:not`| ?gender:not=unknown|
-| general_practitioner||
-| identifier||
-| name        | `:contains` `:exact`|?name:contains=du|
-| name.family | `:contains` `:exact`|
-| name.given  | `:contains` `:exact`|
-| organization||
+**Common search params**
+| Summary     | modif :heavy_check_mark:| example             |
+| :------     | :--                     | :--                 |
+| _id         |                         | ?_id={id}           |
+| _lastUpdated| `eq` `gt` `lt`          | ?_lastUpdated=2021  |
 
+
+**Patient search params**
+| Summary     | modif :heavy_check_mark:| example                                   |
+| :------     | :--                     | :--                                       |
+| active      |`:not`                   | ?active:not=true                          |
+| address     | `:contains` `:exact`    | ?address=japan                            |
+| address.City| `:contains` `:exact`    | ?address-city=PleasantVille               |
+| birthDate   | `eq` `gt` `lt`          | ?birthdate=gt2021&birthdate=lt2022        |
+| deathDate   | `eq` `gt` `lt`          | ?death-date=2015-01-01T00:00:00+00:00     |
+| deceased    | `:not`                  | ?deceased:not=true                        |
+| gender      | `:not`                  | ?gender:not=unknown                       |
+| general_practitioner|                 |                                           |
+| identifier  |                         | ?identifier=example.com|example           |
+| link        |                         | ?link=pat2                                |
+| name        | `:contains` `:exact`    | ?name:contains=du                         |
+| name.family | `:contains` `:exact`    | ?family=zhang                             |
+| name.given  | `:contains` `:exact`    | ?given=peter                              |
+| organization|                         | ?organization=1                           |
+| telecom     |                         | ?telecom=phone|608-271-9000               |
 
 
 [https://www.hl7.org/fhir/search.html#string]

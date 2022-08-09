@@ -58,6 +58,9 @@ let buildStu3SearchQuery = (args) => {
   let birthdate = args['birthdate'];
   let death_date = args['death-date'];
 
+  let deceased = args['deceased']
+  let deceasedNot = args['deceased:not']
+
   let family = args['family'];
   let familyContains = args['family:contains'];
   let familyExact = args['family:exact'];
@@ -75,17 +78,18 @@ let buildStu3SearchQuery = (args) => {
 
   let identifier = args['identifier'];
   
+  let link = args['link']
+
   let name = args['name'];
   let nameContains = args['name:contains'];
   let nameExact = args['name:exact'];
 
   let organization = args['organization']
 
-
+  let telecom = args['telecom']
 
   let query = {};
   let ors = [];
-
 
   if (ors.length !== 0) {
     query.$and = ors;
@@ -99,6 +103,7 @@ let buildStu3SearchQuery = (args) => {
     query =  dateQB(_lastUpdated,'meta.lastUpdated')
     // console.log(query)
   }
+
 
   if (active) { 
     query.active =  {$eq: JSON.parse(active.toLowerCase())};
@@ -116,9 +121,9 @@ let buildStu3SearchQuery = (args) => {
   if (addressCity) {
     query['address.city'] = stringQueryBuilder(addressCity, "");
   } else if (addressCityContains){
-    query['address.city'] = stringQueryBuilder(addressCityContains, "");
+    query['address.city'] = stringQueryBuilder(addressCityContains, "contains");
   } else if (addressCityExact){
-    query['address.city'] = stringQueryBuilder(addressCityExact, "");
+    query['address.city'] = stringQueryBuilder(addressCityExact, "exact");
   }
 
   if (birthdate) {
@@ -127,6 +132,12 @@ let buildStu3SearchQuery = (args) => {
 
   if (death_date) {
     query= dateQB(death_date, 'deceasedDateTime');
+  }
+
+  if (deceased) { 
+    query.deceasedBoolean =  {$eq: JSON.parse(deceased.toLowerCase())};
+  } else if (deceasedNot){
+    query.deceasedBoolean =  {$ne: JSON.parse(deceasedNot.toLowerCase())}
   }
 
 
@@ -169,6 +180,15 @@ let buildStu3SearchQuery = (args) => {
     }
   }
 
+
+  if(link){
+    let queryBuilder = referenceQueryBuilder(link, 'link.other.reference');
+    console.log(queryBuilder)
+    for (let i in queryBuilder) {
+      query[i] = queryBuilder[i];
+    }
+  }
+
   if (organization) {
     let queryBuilder = referenceQueryBuilder(organization, 'managingOrganization.reference');
     console.log(queryBuilder)
@@ -190,17 +210,19 @@ let buildStu3SearchQuery = (args) => {
     }
   } else if(nameExact) {
     let queryBuilder = nameQueryBuilder(nameExact ,'exact');
-    // console.log(JSON.stringify(queryBuilder))
     for (let i in queryBuilder) {
       query = queryBuilder[i];
     }
   }
-  // TODO:  mongo doesn't natively support fuzzy but there are ways to do it
-  // or use Elastic?
-  //
-  // if (phonetic) {
-  //
-  // }
+
+
+  if(telecom){
+    let queryBuilder = tokenQueryBuilder(telecom, 'value', 'telecom', '');
+    console.log(telecom)
+    for (let i in queryBuilder) {
+      query[i] = queryBuilder[i];
+    }
+  }
 
   return query;
 };
@@ -285,7 +307,6 @@ module.exports.create = (args, { req }) =>
     // If no resource ID was provided, generate one.
     let id = getUuid(patient);
     console.log(id)
-
     // Create the resource's metadata
     let Meta = getMeta(base_version);
     patient.meta = new Meta({

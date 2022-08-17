@@ -2,6 +2,29 @@ const moment = require('moment-timezone');
 
 
 /**
+ * @name stringQueryBuilder
+ * @description builds mongo default query for string inputs, no modifiers
+ * @param {string} target what we are querying for
+ * @param {string} modif modifier contains->部分一致, exact->完全一致, それ以外->前方一致
+ * @return a mongo regex query
+ */
+ let stringQueryBuilder = function (target,modif) {
+
+  let t2 = target.replace(/[\\(\\)\\-\\_\\+\\=\\/\\.]/g, '\\$&');
+  // return { $not: { $regex:"^" + t2 + "$"} }; //除外検索
+
+  if ( modif === 'contains'){
+    return { $regex:t2, $options: "i" };
+  } else if(modif === 'exact'){
+    return { $regex:"^" + t2 + "$"};
+  } else {
+    return { $regex: "^" + t2 , $options: "i" };
+  }
+};
+
+
+
+/**
  * @name dateQB
  * @description _lastUpdated has any dateformat pattern. most likely yyyy, yyyymm, yyyymmdd, ltyyyy, gtyyyymm, etc... so frustrated!
  * @param {string} target what we are querying for
@@ -73,26 +96,7 @@ let dateQB = function (target,path) {
 
 
 
-/**
- * @name stringQueryBuilder
- * @description builds mongo default query for string inputs, no modifiers
- * @param {string} target what we are querying for
- * @param {string} modif modifier contains->部分一致, exact->完全一致, それ以外->前方一致
- * @return a mongo regex query
- */
-let stringQueryBuilder = function (target,modif) {
 
-  let t2 = target.replace(/[\\(\\)\\-\\_\\+\\=\\/\\.]/g, '\\$&');
-  // return { $not: { $regex:"^" + t2 + "$"} }; //除外検索
-
-  if ( modif === 'contains'){
-    return { $regex:t2, $options: "i" };
-  } else if(modif === 'exact'){
-    return { $regex:"^" + t2 + "$"};
-  } else {
-    return { $regex: "^" + t2 , $options: "i" };
-  }
-};
 
 /**
  * @name addressQueryBuilder
@@ -131,7 +135,32 @@ let addressQueryBuilder = function (target) {
 let nameQueryBuilder = function (target , modif) {
   let split = target.split(/[\s.,]+/);
   let ors = [];
- 
+
+  const nameArray = ['name.text','name.family','name.given','name.suffix','name.prefix']
+  const queryArray = []
+
+  function modifSwitcher(value,modifier){
+    switch (modifier) {
+      case '':
+        return { $regex: "^" + value, $options: "i" };
+      case 'contains':
+        return { $regex: value, $options: "i" }
+      case 'exact':
+        return { $regex: "^" + value + "$" }
+
+    }
+  }
+
+  for (let i in split) {
+    let modifSwitch = modifSwitcher(split[i],modif)
+    for(let i2=0; i2<nameArray.length; i2++){
+      queryArray.push({[nameArray[i2]]: modifSwitch })
+    }
+  }
+
+return {"$or" : queryArray}
+// ors.push(queryBuilder["$or"]= queryArray)
+
   // $nor: [
   //   { 'name.text'   : { $regex: split[i], $options: "i" } },
   //   { 'name.family' : { $regex: split[i], $options: "i" } },
@@ -140,43 +169,43 @@ let nameQueryBuilder = function (target , modif) {
   //   { 'name.prefix' : { $regex: split[i], $options: "i" } },
   // ],
 
-    if(modif === 'exact'){
-      for (let i in split) {
-        ors.push({
-          $or: [
-            { 'name.text'   : { $regex: "^" + split[i] + "$" } },
-            { 'name.family' : { $regex: "^" + split[i] + "$" } },
-            { 'name.given'  : { $regex: "^" + split[i] + "$" } },
-            { 'name.suffix' : { $regex: "^" + split[i] + "$" } },
-            { 'name.prefix' : { $regex: "^" + split[i] + "$" } },
-          ],
-        });
-      }
-    } else if(modif ==='contains'){
-      for (let i in split) {
-        ors.push({
-          $or: [
-            { 'name.text'   : { $regex: split[i], $options: "i" } },
-            { 'name.family' : { $regex: split[i], $options: "i" } },
-            { 'name.given'  : { $regex: split[i], $options: "i" } },
-            { 'name.suffix' : { $regex: split[i], $options: "i" } },
-            { 'name.prefix' : { $regex: split[i], $options: "i" } },
-          ],
-        });
-      }
-    }else {
-      for (let i in split) {
-        ors.push({
-          $or: [
-            { 'name.text'   : { $regex: "^" + split[i], $options: "i" } },
-            { 'name.family' : { $regex: "^" + split[i], $options: "i" } },
-            { 'name.given'  : { $regex: "^" + split[i], $options: "i" } },
-            { 'name.suffix' : { $regex: "^" + split[i], $options: "i" } },
-            { 'name.prefix' : { $regex: "^" + split[i], $options: "i" } },
-          ],
-        });
-      }
-  }
+  //   if(modif === 'exact'){
+  //     for (let i in split) {
+  //       ors.push({
+  //         $or: [
+  //           { 'name.text'   : { $regex: "^" + split[i] + "$" } },
+  //           { 'name.family' : { $regex: "^" + split[i] + "$" } },
+  //           { 'name.given'  : { $regex: "^" + split[i] + "$" } },
+  //           { 'name.suffix' : { $regex: "^" + split[i] + "$" } },
+  //           { 'name.prefix' : { $regex: "^" + split[i] + "$" } },
+  //         ],
+  //       });
+  //     }
+  //   } else if(modif ==='contains'){
+  //     for (let i in split) {
+  //       ors.push({
+  //         $or: [
+  //           { 'name.text'   : { $regex: split[i], $options: "i" } },
+  //           { 'name.family' : { $regex: split[i], $options: "i" } },
+  //           { 'name.given'  : { $regex: split[i], $options: "i" } },
+  //           { 'name.suffix' : { $regex: split[i], $options: "i" } },
+  //           { 'name.prefix' : { $regex: split[i], $options: "i" } },
+  //         ],
+  //       });
+  //     }
+  //   }else {
+  //     for (let i in split) {
+  //       ors.push({
+  //         $or: [
+  //           { 'name.text'   : { $regex: "^" + split[i], $options: "i" } },
+  //           { 'name.family' : { $regex: "^" + split[i], $options: "i" } },
+  //           { 'name.given'  : { $regex: "^" + split[i], $options: "i" } },
+  //           { 'name.suffix' : { $regex: "^" + split[i], $options: "i" } },
+  //           { 'name.prefix' : { $regex: "^" + split[i], $options: "i" } },
+  //         ],
+  //       });
+  //     }
+  // }
 
   return ors;
 };
@@ -188,6 +217,8 @@ let nameQueryBuilder = function (target , modif) {
  * @param {string} type codeable concepts use a code field and identifiers use a value
  * @param {string} field path to system and value from field
  * @param {string} required the required system if specified
+ * @param {string} detaType token's detaType https://www.hl7.org/fhir/search.html#token
+ * @param {string} modifier If it has a modifier, it will move with it.
  * @return {JSON} queryBuilder
  * Using to assign a single variable:
  *      let queryBuilder = tokenQueryBuilder(identifier, 'value', 'identifier');
@@ -197,30 +228,50 @@ let nameQueryBuilder = function (target , modif) {
 * Use in an or query
 *      query.$or = [tokenQueryBuilder(identifier, 'value', 'identifier'), tokenQueryBuilder(type, 'code', 'type.coding')];
 */
-let tokenQueryBuilder = function (target, type, field, required) {
-  // console.log(target)
-  // console.log(modifiersChecker(target))
+let tokenQueryBuilder = function (target, type, field, required, dataType, modifier) {
   let queryBuilder = {};
   let system = '';
   let value = '';
 
-  if (target.includes('|')) {
-    [system, value] = target.split('|');
-
-    if (required) {
-      system = required;
+  if(dataType === "boolean"){
+    if(modifier === 'not' ){ //need change
+      queryBuilder[field] = {$ne: JSON.parse(target.toLowerCase())} //https://stackoverflow.com/questions/263965/how-can-i-convert-a-string-to-boolean-in-javascript
+    } else {
+      queryBuilder[field] = {$eq: JSON.parse(target.toLowerCase())}
     }
-  } else {
-    value = target;
+  } else if(dataType === "string") {
+    if(modifier === 'not' ){ //need change
+      queryBuilder[field] = { $ne: target }
+    } else {
+      queryBuilder[field] = { $eq: target }
+    }
+  } else { //code(implicitType)
+    if(modifier === 'text'){
+      queryBuilder[`${field}`] = target;
+    } else {
+      if (target.includes('|')) {
+        [system, value] = target.split('|');
+    
+        if (required) {
+          system = required;
+        }
+      } else {
+        value = target;
+      }
+    }
+
+  
+    if (system) {
+      queryBuilder[`${field}.system`] = system;
+    }
+    if (value) {
+      queryBuilder[`${field}.${type}`] = value;
+    }
   }
 
-  if (system) {
-    queryBuilder[`${field}.system`] = system;
-  }
-  if (value) {
-    queryBuilder[`${field}.${type}`] = value;
-  }
   return queryBuilder;
+
+
 };
 
 /**
@@ -699,8 +750,10 @@ let compositeQueryBuilder = function (target, field1, field2) {
   let [path1, type1] = field1.split('|');
   let [path2, type2] = field2.split('|');
   console.log([target])
+  // console.log(field1)
+  // console.log(field2)
   console.log([path1, type1])
-  console.log([path2, type2])
+  // console.log([path2, type2])
 
   // Call the right queryBuilder based on type
   switch (type1) {
@@ -785,10 +838,11 @@ let compositeQueryBuilder = function (target, field1, field2) {
       temp[`${path2}`] = target2;
       composite.push(temp);
   }
-  console.log(JSON.stringify(composite))
   if (target.includes('$')) {
+    console.log({$and: JSON.stringify(composite)})
     return { $and: composite };
   } else {
+    console.log({$or: JSON.stringify(composite)})
     return { $or: composite };
   }
 };

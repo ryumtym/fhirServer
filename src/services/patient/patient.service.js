@@ -8,7 +8,7 @@ const globals = require('../../globals');
 const jsonpatch = require('fast-json-patch');
 
 const { getUuid } = require('../../utils/uid.util');
-const { modifiersChecker, tokenModifiers, modifCheck } = require('../../utils/modifiers');
+const { modifiersChecker } = require('../../utils/modifiers');
 
 const logger = require('@asymmetrik/node-fhir-server-core').loggers.get();
 
@@ -33,7 +33,6 @@ let getMeta = (base_version) => {
 
 let buildStu3SearchQuery = (args) => {
 
-
   // Common search params
   let { _content, _format, _id, _lastUpdated, _profile, _query, _security, _tag } = args;
 
@@ -41,10 +40,14 @@ let buildStu3SearchQuery = (args) => {
   let { _INCLUDE, _REVINCLUDE, _SORT, _COUNT, _SUMMARY, _elements, _CONTAINED, _CONTAINEDTYPED } =
     args;
 
-  
-  // Patient search params
+  // function isKeyExists(obj,key){
+  //     return key in obj;
+  // }
+  // console.log(isKeyExists(args,/(.*):(.*)/))
+// const a = 'name' || 'name' + ':missng'
+// if(args)
 
-  // console.log(args)
+  // Patient search params
 
   let active = args['active'];
   let activeNot = args['active:not'];
@@ -66,7 +69,6 @@ let buildStu3SearchQuery = (args) => {
   let familyExact = args['family:exact'];
 
 
-
   let gender = args['gender'];
   let genderNot = args['gender:not'];
 
@@ -77,7 +79,10 @@ let buildStu3SearchQuery = (args) => {
   let givenExact = args['given:exact'];
 
   let identifier = args['identifier'];
-  
+  let identifierNot = args['identifier:not'];
+  let identifierText = args['identifier:text'];
+
+
   let link = args['link']
 
   let name = args['name'];
@@ -105,10 +110,21 @@ let buildStu3SearchQuery = (args) => {
   }
 
 
+
+
   if (active) { 
-    query.active =  {$eq: JSON.parse(active.toLowerCase())};
+    console.log(active)
+    let queryBuilder = tokenQueryBuilder(active,"","active","","boolean","");
+    for (let i in queryBuilder) {
+      query[i] = queryBuilder[i];
+    }
+    // query.active =  {$eq: JSON.parse(active.toLowerCase())};
   } else if (activeNot){
-    query.active =  {$ne: JSON.parse(activeNot.toLowerCase())}
+    let queryBuilder = tokenQueryBuilder(activeNot,"","active","","boolean","not");
+    for (let i in queryBuilder) {
+      query[i] = queryBuilder[i];
+    }
+    // query.active =  {$ne: JSON.parse(activeNot.toLowerCase())}
   }
 
   if(address){
@@ -135,9 +151,17 @@ let buildStu3SearchQuery = (args) => {
   }
 
   if (deceased) { 
-    query.deceasedBoolean =  {$eq: JSON.parse(deceased.toLowerCase())};
+    let queryBuilder = tokenQueryBuilder(deceased,"","deceased","","boolean","");
+    for (let i in queryBuilder) {
+      query[i] = queryBuilder[i];
+    }
+    // query.deceasedBoolean =  {$eq: JSON.parse(deceased.toLowerCase())};
   } else if (deceasedNot){
-    query.deceasedBoolean =  {$ne: JSON.parse(deceasedNot.toLowerCase())}
+    let queryBuilder = tokenQueryBuilder(deceasedNot,"","deceased","","boolean","not");
+    for (let i in queryBuilder) {
+      query[i] = queryBuilder[i];
+    }
+    // query.deceasedBoolean =  {$ne: JSON.parse(deceasedNot.toLowerCase())}
   }
 
 
@@ -150,9 +174,17 @@ let buildStu3SearchQuery = (args) => {
   } 
 
   if (gender) {
-    query.gender = { $regex: "^" + gender, $options: "i"}
+    let queryBuilder = tokenQueryBuilder(gender, '', 'gender',"","string","");
+    for (let i in queryBuilder) {
+      query[i] = queryBuilder[i];
+    }
+    // query.gender = { $regex: "^" + gender, $options: "i"}
   } else if (genderNot){
-    query.gender = { $not: { $regex: "^" + genderNot, $options: "i"}}
+    let queryBuilder = tokenQueryBuilder(genderNot, '', 'gender',"","string","not");
+    for (let i in queryBuilder) {
+      query[i] = queryBuilder[i];
+    }
+    // query.gender = { $not: { $regex: "^" + genderNot, $options: "i"}}
   }
 
   if (general_practitioner) {
@@ -174,7 +206,16 @@ let buildStu3SearchQuery = (args) => {
 
   if (identifier) {
     let queryBuilder = tokenQueryBuilder(identifier, 'value', 'identifier', '');
-    console.log(identifier)
+    for (let i in queryBuilder) {
+      query[i] = queryBuilder[i];
+    }
+  }else if(identifierNot){
+    let queryBuilder = tokenQueryBuilder(identifierNot, 'value', 'identifier', '','','not');
+    for (let i in queryBuilder) {
+      query[i] = queryBuilder[i];
+    }
+  }else if(identifierText){
+    let queryBuilder = tokenQueryBuilder(identifierText, 'value', 'identifier.type.text', '','','text');
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
     }
@@ -198,20 +239,21 @@ let buildStu3SearchQuery = (args) => {
   }
 
 
+
   if (name) {
     let queryBuilder = nameQueryBuilder(name, "");
     for (let i in queryBuilder) {
-      query = queryBuilder[i];
+      query[i] = queryBuilder[i];
     }
   } else if(nameContains) {
     let queryBuilder = nameQueryBuilder(nameContains, "contains");
     for (let i in queryBuilder) {
-      query = queryBuilder[i];
+      query[i] = queryBuilder[i];
     }
   } else if(nameExact) {
     let queryBuilder = nameQueryBuilder(nameExact ,'exact');
     for (let i in queryBuilder) {
-      query = queryBuilder[i];
+      query[i] = queryBuilder[i];
     }
   }
 

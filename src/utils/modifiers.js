@@ -17,17 +17,19 @@ const modifiersChecker = function (target) {
   return newArr
 }
 
-const modifCheck = function(target){
-  const reg = new RegExp(/([^"]*)(:[^"]*)/)  // ([^"]*)(:[^"]*)(=)([^"]*)
-  regCheck = reg.exec(target)
-  return regCheck
-}
-
-const tokenModifiers = ['', ':not', ':text', ':above', ':below', ':in', ':not-in', ':of-type'];
+const matchModifiers = {
+  missing: 'missing',
+  exact: 'exact',
+  contains: 'contains',
+  text: 'text',
+  above: 'above',
+  below: 'below',
+  in: 'in',
+  not_in: 'not-in',
+  not: 'not',
+};
 
 
 module.exports = {
   modifiersChecker,
-  tokenModifiers,
-  modifCheck
 }

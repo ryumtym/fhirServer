@@ -109,15 +109,19 @@ let buildRelease4SearchQuery = (args) => {
   }
 
   if (code) {
-    let queryBuilder = tokenQueryBuilder(code, 'coding', 'code');
+    let queryBuilder = tokenQueryBuilder(code, 'coding.code', 'code');
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
-      console.log(query[i])
     }
+    console.log(query)
   }
 
   if (code_value_concept) {
-    query['code.value.concept'] = compositeQueryBuilder(code_value_concept,'code.value.concept','');
+    query['code.value.concept'] = compositeQueryBuilder(code_value_concept,'component.code.coding|token','');
+  //   code: code
+  // value-concept: value.as(CodeableConcept)
+
+  component.valueQuantity|quantity
   }
 
   if (code_value_date) {
@@ -181,9 +185,7 @@ let buildRelease4SearchQuery = (args) => {
   }
 
   if (component_code_value_quantity) {
-    // console.log(compositeQueryBuilder(component_code_value_quantity,'component-code-value-quantity','valueQuantity'))
-    // query['component-code-value-quantity'] = compositeQueryBuilder(component_code_value_quantity,'code.coding|token','valueQuantity|value');
-    let queryBuilder = compositeQueryBuilder(component_code_value_quantity,'code.coding|token','valueQuantity|value');
+    let queryBuilder = compositeQueryBuilder(component_code_value_quantity,'component.code.coding|token','component.valueQuantity|quantity');
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
     }
@@ -244,14 +246,14 @@ let buildRelease4SearchQuery = (args) => {
   }
 
   if (encounter) {
-    let queryBuilder = referenceQueryBuilder(encounter, 'encounter');
+    let queryBuilder = referenceQueryBuilder(encounter, 'encounter.reference');
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
     }
   }
 
   if (focus) {
-    let queryBuilder = referenceQueryBuilder(focus, 'encounter');
+    let queryBuilder = referenceQueryBuilder(focus, 'focus');
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
     }
@@ -313,6 +315,12 @@ let buildRelease4SearchQuery = (args) => {
     }
   }
 
+  if (value_date) {
+    let queryBuilder = quantityQueryBuilder(value_date,'valueDate');
+    for (let i in queryBuilder) {
+      query[i] = queryBuilder[i];
+    }
+  }
 
   if (value_quantity) {
     let queryBuilder = quantityQueryBuilder(value_quantity,'valueQuantity');
@@ -345,7 +353,8 @@ module.exports.search = (args) =>
     let db = globals.get(CLIENT_DB);
     let collection = db.collection(`${COLLECTION.OBSERVATION}_${base_version}`);
     let Observation = getObservation(base_version);
-    console.log("args&query" + JSON.stringify(args,query))
+
+    console.log(query)
  
     // Query our collection for this observation
     collection.find(query, (err, data) => {

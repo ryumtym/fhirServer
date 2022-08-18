@@ -96,9 +96,7 @@ let buildStu3SearchQuery = (args) => {
   let query = {};
   let ors = [];
 
-  if (ors.length !== 0) {
-    query.$and = ors;
-  }
+
 
   if (_id) {
     query.id = _id;
@@ -130,9 +128,12 @@ let buildStu3SearchQuery = (args) => {
   if(address){
     let queryBuilder = addressQueryBuilder(address);
     for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
+      // query[i] = queryBuilder[i];
+      ors.push({"$or" : queryBuilder[i] })
     }
   }
+
+
 
   if (addressCity) {
     query['address.city'] = stringQueryBuilder(addressCity, "");
@@ -241,17 +242,20 @@ let buildStu3SearchQuery = (args) => {
   if (name) {
     let queryBuilder = nameQueryBuilder(name, "");
     for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
+      // query[i] = queryBuilder[i];
+      ors.push({"$or" : queryBuilder[i] })
     }
   } else if(nameContains) {
     let queryBuilder = nameQueryBuilder(nameContains, "contains");
     for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
+      // query[i] = queryBuilder[i];
+      ors.push({"$or" : queryBuilder[i] })
     }
   } else if(nameExact) {
     let queryBuilder = nameQueryBuilder(nameExact ,'exact');
     for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
+      // query[i] = queryBuilder[i];
+      ors.push({"$or" : queryBuilder[i] })
     }
   }
 
@@ -262,6 +266,10 @@ let buildStu3SearchQuery = (args) => {
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
     }
+  }
+
+  if (ors.length !== 0) {
+    query.$and = ors;
   }
 
   return query;

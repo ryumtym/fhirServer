@@ -117,8 +117,8 @@ let addressQueryBuilder = function (target) {
     }
   }
 
-  return {"$or" : queryArray}
-
+  // return {"$or" : queryArray}
+  return [queryArray]
 };
 
 /**
@@ -154,7 +154,9 @@ let nameQueryBuilder = function (target , modif) {
     }
   }
 
-return {"$or" : queryArray}
+// return {"$or" : queryArray}
+return [queryArray]
+
 // ors.push(queryBuilder["$or"]= queryArray)
 
   // $nor: [

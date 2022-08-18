@@ -13,7 +13,7 @@ const moment = require('moment-timezone');
   let t2 = target.replace(/[\\(\\)\\-\\_\\+\\=\\/\\.]/g, '\\$&');
   // return { $not: { $regex:"^" + t2 + "$"} }; //除外検索
 
-  if ( modif === 'contains'){
+  if (modif === 'contains'){
     return { $regex:t2, $options: "i" };
   } else if(modif === 'exact'){
     return { $regex:"^" + t2 + "$"};
@@ -129,83 +129,28 @@ let addressQueryBuilder = function (target) {
  * @param {string} modif https://www.hl7.org/fhir/search.html#string
  * @return {array} ors
  */
-let nameQueryBuilder = function (target , modif) {
+let nameQueryBuilder = function (target , modif) { 
   let split = target.split(/[\s.,]+/);
 
   const nameArray = ['name.text','name.family','name.given','name.suffix','name.prefix']
   const queryArray = []
 
-  function modifSwitcher(value,modifier){
-    switch (modifier) {
-      case '':
-        return { $regex: "^" + value, $options: "i" };
-      case 'contains':
-        return { $regex: value, $options: "i" }
-      case 'exact':
-        return { $regex: "^" + value + "$" }
-
-    }
-  }
-
   for (let i in split) {
-    let modifSwitch = modifSwitcher(split[i],modif)
+
+    const modifSwitch = { //修飾子で判定してクエリ返す
+        ''        : function(v){ return { $regex: "^" + v, $options: "i" } }  , //default 前方一致
+        'contains': function(v){ return { $regex: v, $options: "i" } }  , //部分一致 
+        'exact'   : function(v){ return { $regex: "^" + v + "$" } } //完全一致 
+    }[modif](split[i]);
+
     for(let i2=0; i2<nameArray.length; i2++){
       queryArray.push({[nameArray[i2]]: modifSwitch })
     }
+
   }
 
-// return {"$or" : queryArray}
 return [queryArray]
 
-// ors.push(queryBuilder["$or"]= queryArray)
-
-  // $nor: [
-  //   { 'name.text'   : { $regex: split[i], $options: "i" } },
-  //   { 'name.family' : { $regex: split[i], $options: "i" } },
-  //   { 'name.given'  : { $regex: split[i], $options: "i" } },
-  //   { 'name.suffix' : { $regex: split[i], $options: "i" } },
-  //   { 'name.prefix' : { $regex: split[i], $options: "i" } },
-  // ],
-
-  //   if(modif === 'exact'){
-  //     for (let i in split) {
-  //       ors.push({
-  //         $or: [
-  //           { 'name.text'   : { $regex: "^" + split[i] + "$" } },
-  //           { 'name.family' : { $regex: "^" + split[i] + "$" } },
-  //           { 'name.given'  : { $regex: "^" + split[i] + "$" } },
-  //           { 'name.suffix' : { $regex: "^" + split[i] + "$" } },
-  //           { 'name.prefix' : { $regex: "^" + split[i] + "$" } },
-  //         ],
-  //       });
-  //     }
-  //   } else if(modif ==='contains'){
-  //     for (let i in split) {
-  //       ors.push({
-  //         $or: [
-  //           { 'name.text'   : { $regex: split[i], $options: "i" } },
-  //           { 'name.family' : { $regex: split[i], $options: "i" } },
-  //           { 'name.given'  : { $regex: split[i], $options: "i" } },
-  //           { 'name.suffix' : { $regex: split[i], $options: "i" } },
-  //           { 'name.prefix' : { $regex: split[i], $options: "i" } },
-  //         ],
-  //       });
-  //     }
-  //   }else {
-  //     for (let i in split) {
-  //       ors.push({
-  //         $or: [
-  //           { 'name.text'   : { $regex: "^" + split[i], $options: "i" } },
-  //           { 'name.family' : { $regex: "^" + split[i], $options: "i" } },
-  //           { 'name.given'  : { $regex: "^" + split[i], $options: "i" } },
-  //           { 'name.suffix' : { $regex: "^" + split[i], $options: "i" } },
-  //           { 'name.prefix' : { $regex: "^" + split[i], $options: "i" } },
-  //         ],
-  //       });
-  //     }
-  // }
-
-  // return ors;
 };
 
 
@@ -226,7 +171,7 @@ return [queryArray]
 * Use in an or query
 *      query.$or = [tokenQueryBuilder(identifier, 'value', 'identifier'), tokenQueryBuilder(type, 'code', 'type.coding')];
 */
-let tokenQueryBuilder = function (target, type, field, required, dataType, modifier) {
+let tokenQueryBuilder = function (target, type, field, required, dataType, modifier) { //fork元の書き方だと今後ネストが深くなるので書き直したい
   let queryBuilder = {};
   let system = '';
   let value = '';
@@ -283,25 +228,20 @@ let referenceQueryBuilder = function (target, field) {
   // const regex = /(.+)\/(.+)$/;
   const match = target.match(regex);
   let queryBuilder = {};
-  console.log("node-fhir-server-mongo/src/utils/querybuilder.util/referenceQueryBuilder: " + "target:" + target , "field:" + field)
 
   // Check if target is a url
   if (match) {
     queryBuilder[field] = match[2];
-    console.log("1")
   }
   // target = type/id
   else if (target.includes('/')) {
     let [type, id] = target.split('/');
     queryBuilder[field] = `${type}/${id}`;
-    console.log("2")
   }
   // target = id The type may be there so we need to check the end of the field for the id
   else {
     queryBuilder[field] = { $regex: new RegExp(`${target}$`) };
-    console.log("3")
   }
-  console.log(queryBuilder)
   return queryBuilder;
 };
 
@@ -449,7 +389,7 @@ let getDateFromNum = function (days) {
 //Also doesn't work foe when things are stored in different time zones in the .json files (with the + or -)
 //  UNLESS, the search parameter is teh exact same as what is stored.  So, if something is stored as 2016-06-03T05:00-03:00, then the search parameter must be 2016-06-03T05:00-03:00
 //It's important to make sure formatting is right, dont forget a leading 0 when dealing with single digit times.
-let dateQueryBuilder = function (date, type, path) {
+let dateQueryBuilder = function (date, type, path) { //fork元のコードがかなりやばいので1から書き直したい
   let regex = /^(\D{2})?(\d{4})(-\d{2})?(-\d{2})?(?:(T\d{2}:\d{2})(:\d{2})?)?(Z|(\+|-|\s)(\d{2}):(\d{2}))?$/;
   let match = date.match(regex);
   let str = '';

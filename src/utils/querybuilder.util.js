@@ -108,20 +108,17 @@ let dateQB = function (target,path) {
 let addressQueryBuilder = function (target) {
   // Tokenize the input as mush as possible
   let totalSplit = target.split(/[\s,]+/);
-  let ors = [];
-  for (let index in totalSplit) {
-    ors.push({
-      $or: [
-        { 'address.line': { $regex: "^" + totalSplit[index], $options: "i" } },
-        { 'address.city': { $regex: "^" + totalSplit[index], $options: "i" } },
-        { 'address.district': { $regex: "^" + totalSplit[index], $options: "i" } },
-        { 'address.state': { $regex: "^" + totalSplit[index], $options: "i" } },
-        { 'address.postalCode': { $regex: "^" + totalSplit[index], $options: "i" } },
-        { 'address.country': { $regex: "^" + totalSplit[index], $options: "i" } },
-      ],
-    });
+  const addressArray = ['address.line','address.city','address.district','address.state','address.postalCode', 'address.country']
+  const queryArray = []
+
+  for (let i in totalSplit) {
+    for(let i2=0; i2<addressArray.length; i2++){
+      queryArray.push({[addressArray[i2]]: { $regex: "^" + totalSplit[i], $options: "i" } })
+    }
   }
-  return ors;
+
+  return {"$or" : queryArray}
+
 };
 
 /**
@@ -134,7 +131,6 @@ let addressQueryBuilder = function (target) {
  */
 let nameQueryBuilder = function (target , modif) {
   let split = target.split(/[\s.,]+/);
-  let ors = [];
 
   const nameArray = ['name.text','name.family','name.given','name.suffix','name.prefix']
   const queryArray = []
@@ -207,7 +203,7 @@ return {"$or" : queryArray}
   //     }
   // }
 
-  return ors;
+  // return ors;
 };
 
 

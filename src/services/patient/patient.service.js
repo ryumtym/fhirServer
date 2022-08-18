@@ -130,7 +130,7 @@ let buildStu3SearchQuery = (args) => {
   if(address){
     let queryBuilder = addressQueryBuilder(address);
     for (let i in queryBuilder) {
-      query = queryBuilder[i];
+      query[i] = queryBuilder[i];
     }
   }
 
@@ -155,13 +155,11 @@ let buildStu3SearchQuery = (args) => {
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
     }
-    // query.deceasedBoolean =  {$eq: JSON.parse(deceased.toLowerCase())};
   } else if (deceasedNot){
     let queryBuilder = tokenQueryBuilder(deceasedNot,"","deceased","","boolean","not");
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
     }
-    // query.deceasedBoolean =  {$ne: JSON.parse(deceasedNot.toLowerCase())}
   }
 
 

@@ -8,7 +8,6 @@ const globals = require('../../globals');
 const jsonpatch = require('fast-json-patch');
 
 const { getUuid } = require('../../utils/uid.util');
-const { modifiersChecker } = require('../../utils/modifiers');
 
 const logger = require('@asymmetrik/node-fhir-server-core').loggers.get();
 
@@ -20,7 +19,6 @@ const {
   nameQueryBuilder,
   dateQueryBuilder,
   dateQB,
-  test
 } = require('../../utils/querybuilder.util');
 
 let getPatient = (base_version) => {
@@ -39,13 +37,6 @@ let buildStu3SearchQuery = (args) => {
   // Search Result params
   let { _INCLUDE, _REVINCLUDE, _SORT, _COUNT, _SUMMARY, _elements, _CONTAINED, _CONTAINEDTYPED } =
     args;
-
-  // function isKeyExists(obj,key){
-  //     return key in obj;
-  // }
-  // console.log(isKeyExists(args,/(.*):(.*)/))
-// const a = 'name' || 'name' + ':missng'
-// if(args)
 
   // Patient search params
 
@@ -268,6 +259,7 @@ let buildStu3SearchQuery = (args) => {
     }
   }
 
+  // https://stackoverflow.com/questions/5150061/mongodb-multiple-or-operations
   if (ors.length !== 0) {
     query.$and = ors;
   }

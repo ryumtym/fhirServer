@@ -1,30 +1,5 @@
+# https://gist.github.com/ryumtym/6b00d180652144473bf978428ef7883a
 ## 進捗
-**Common search params**
-| Summary     | modif :heavy_check_mark:| example             |
-| :------     | :--                     | :--                 |
-| _id         |                         | ?_id={id}           |
-| _lastUpdated| `eq` `gt` `lt`          | ?_lastUpdated=2021  |
-
-
-**Patient search params**
-| Summary     | modif :heavy_check_mark:| example                                   |
-| :------     | :--                     | :--                                       |
-| active      |`:not`                   | ?active:not=true                          |
-| address     | `:contains` `:exact`    | ?address=japan                            |
-| address.City| `:contains` `:exact`    | ?address-city=PleasantVille               |
-| birthDate   | `eq` `gt` `lt`          | ?birthdate=gt2021&birthdate=lt2022        |
-| deathDate   | `eq` `gt` `lt`          | ?death-date=2015-01-01T00:00:00+00:00     |
-| deceased    | `:not`                  | ?deceased:not=true                        |
-| gender      | `:not`                  | ?gender:not=unknown                       |
-| general_practitioner|                 |                                           |
-| identifier  |                         | ?identifier=example.com|example           |
-| link        |                         | ?link=pat2                                |
-| name        | `:contains` `:exact`    | ?name:contains=du                         |
-| name.family | `:contains` `:exact`    | ?family=zhang                             |
-| name.given  | `:contains` `:exact`    | ?given=peter                              |
-| organization|                         | ?organization=1                           |
-| telecom     |                         | ?telecom=phone|608-271-9000               |
-
 
 [https://www.hl7.org/fhir/search.html#string]
 
@@ -260,7 +235,7 @@ module.exports = {
   sanitizeMiddleware
 };
 ```
-_**fhirJsonData for test**_ [via mongoplayground](https://mongoplayground.net/)
+_**fhirJsonData for**_ [mongoplayground](https://mongoplayground.net/)
 ```bson
 [
   {

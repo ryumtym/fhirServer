@@ -1,0 +1,164 @@
+diff --git a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/schemas/observation.js b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/schemas/observation.js
+index c3701ca..d0211d6 100644
+--- a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/schemas/observation.js
++++ b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/schemas/observation.js
+@@ -283,6 +283,7 @@ module.exports = class Observation {
+         let Element = require('./element.js');
+ 
+         this.__data._effectiveDateTime = new Element(value);
++        console.log(this.__data._effectiveDateTime)
+       }
+     });
+     Object.defineProperty(this, 'effectiveDateTime', {
+@@ -294,6 +295,7 @@ module.exports = class Observation {
+         }
+ 
+         this.__data.effectiveDateTime = value;
++        console.log(value)
+       }
+     });
+     Object.defineProperty(this, 'effectivePeriod', {
+diff --git a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/sanitize.utils.js b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/sanitize.utils.js
+index 3e6f85c..41bb041 100644
+--- a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/sanitize.utils.js
++++ b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/sanitize.utils.js
+@@ -5,6 +5,7 @@ const errors = require('./error.utils');
+ const validator = require('validator');
+ 
+ const xss = require('xss');
++const { default: isURL } = require('validator/lib/isURL');
+ 
+ let parseValue = function (type, value) {
+   let result;
+@@ -26,11 +27,14 @@ let parseValue = function (type, value) {
+     case 'reference':
+     case 'uri':
+     case 'token':
++    case 'quantity':
++    case 'composite':
+       // strip any html tags from the query
+       // xss helps prevent html from slipping in
+       // strip a certain range of unicode characters
+       // replace any non word characters
+       result = validator.stripLow(xss(sanitize(value)));
++      // console.log(result)
+       break;
+ 
+     case 'json_string':
+@@ -63,6 +67,8 @@ let validateType = function (type, value) {
+     case 'uri':
+     case 'token':
+     case 'date':
++    case 'quantity':
++    case 'composite':
+       result = typeof value === 'string';
+       break;
+ 
+@@ -108,6 +114,47 @@ let findMatchWithName = (name = '', params = {}) => {
+     value: params[match]
+   };
+ };
++
++/**
++ * @function modifiersChecker 
++ * @summary Checks for modifiers and returns parameters without modifiers as object type 
++ * example  target = gender:not -> return ['gender'], target = gender -> return['gender']
++ * @param {object} target - searchParams
++ */
++const modifiersChecker = function (target) {
++  const reg = new RegExp(/([^"]*)(:)([^"]*)/)
++  const keyObj = Object.keys(target);
++  const valueObj = Object.values(target)
++  let newArr = {}
++
++  for(let i=0; i<keyObj.length; i++){
++    if(reg.test(keyObj[i]) == true){
++      newArr[keyObj[i].split(':')[0]] = valueObj[i]
++    }else{
++      newArr[keyObj[i]] = valueObj[i]
++    }
++  }
++  console.log(newArr)
++  return newArr
++
++}
++
++/**
++ * @function searchParameterChecker
++ * @summary Check if the search parameters are equivalent to the values specified by hl7
++ * example  target = gendernot -> return ['gender'], target = gender -> return['gender']
++ * @param {object} target - searchParams
++ * @param {array} paramsArr - Value determined by hl7
++ */
++const searchParameterChecker = function(target, paramsArr){
++  for(let i = 0; i < Object.keys(target).length; i++){
++    if(paramsArr.includes(Object.keys(target)[i]) === false){
++      return Object.keys(target)[i];
++    }
++  }
++}
++
++
+ /**
+  * @function sanitizeMiddleware
+  * @summary Sanitize the arguments by removing extra arguments, escaping some, and
+@@ -119,16 +166,20 @@ let findMatchWithName = (name = '', params = {}) => {
+  * @param {boolean} required - Should we throw if this argument is present and invalid, default is false
+  */
+ 
+-
+ let sanitizeMiddleware = function (config) {
+   return function (req, res, next) {
+     let currentArgs = parseParams(req);
+     let cleanArgs = {}; // filter only ones with version or no version
+ 
++    // let searchParametersArr = ["_INCLUDE", "_REVINCLUDE", "_SORT", "_COUNT", "_SUMMARY", "_elements", "_CONTAINED", "_CONTAINEDTYPED"];
++    let searchParametersArr = [];
++
+     let version_specific_params = config.filter(param => {
+       return !param.versions || param.versions === req.params.base_version;
+     }); // Check each argument in the config
+ 
++
++
+     for (let i = 0; i < version_specific_params.length; i++) {
+       let conf = version_specific_params[i];
+       let {
+@@ -136,12 +187,14 @@ let sanitizeMiddleware = function (config) {
+         value
+       } = findMatchWithName(conf.name, currentArgs); // If the argument is required but not present
+ 
++      // console.log(config)
++      searchParametersArr.push(conf.name)
++
+       if (!value && conf.required) {
+         return next(errors.invalidParameter(conf.name + ' is required', req.params.base_version));
+       } // Try to cast the type to the correct type, do this first so that if something
+       // returns as NaN we can bail on it
+ 
+-
+       try {
+         if (value) {
+           cleanArgs[field] = parseValue(conf.type, value);
+@@ -150,12 +203,20 @@ let sanitizeMiddleware = function (config) {
+         return next(errors.invalidParameter(conf.name + ' is invalid', req.params.base_version));
+       } // If we have the arg and the type is wrong, throw invalid arg
+ 
+-
+       if (cleanArgs[field] !== undefined && !validateType(conf.type, cleanArgs[field])) {
+         return next(errors.invalidParameter('Invalid parameter: ' + conf.name, req.params.base_version));
+       }
+     } // Save the cleaned arguments on the request for later use, we must only use these later on
+ 
++    // console.log("n-f-c/dist/server-utils/sanitize.utill/sanitizeMiddleware/cleanArgs" + JSON.stringify(cleanArgs))
++    // console.log("n-f-c/dist/server-utils/sanitize.utill/sanitizeMiddleware/currentArgs" + JSON.stringify(currentArgs))
++    if(searchParameterChecker(modifiersChecker(currentArgs), searchParametersArr)){
++      return next(errors.invalidParameter(
++        'Invalid parameter: ' + JSON.stringify(currentArgs) +  '  Valid search parameters for this search are : ' +  searchParametersArr 
++      ));
++    }
++
++
+ 
+     req.sanitized_args = cleanArgs;
+     next();

@@ -59,10 +59,10 @@ let buildStu3SearchQuery = (args) => {
   let familyContains = args['family:contains'];
   let familyExact = args['family:exact'];
 
-
   let gender = args['gender'];
   let genderNot = args['gender:not'];
 
+    
   let general_practitioner = args['general-practitioner'];
 
   let given = args['given'];

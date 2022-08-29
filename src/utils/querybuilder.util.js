@@ -11,7 +11,7 @@ const moment = require('moment-timezone');
  let stringQueryBuilder = function (target,modif) {
   let t2 = target.replace(/[\\(\\)\\-\\_\\+\\=\\/\\.]/g, '\\$&');
   
-  const modifSwitch = { //修飾子で判定してクエリ返す 
+  const modifSwitch = { //引数2の値で判定してクエリ返す 
     ''        : function(v){ return { $regex: "^" + v, $options: "i" } }  , //default 前方一致
     'contains': function(v){ return { $regex: v, $options: "i" } }  , //部分一致 
     'exact'   : function(v){ return { $regex: "^" + v + "$" } } //完全一致 
@@ -139,8 +139,8 @@ let nameQueryBuilder = function (target , modif) {
     const modifSwitch = { //修飾子で判定してクエリ返す
         ''        : function(v){ return { $regex: "^" + v, $options: "i" } }  , //default 前方一致
         'contains': function(v){ return { $regex: v, $options: "i" } }  , //部分一致 
-        'exact'   : function(v){ return { $regex: "^" + v + "$" } } //完全一致 
-    }[modif](split[i]);
+        'exact'   : function(v){ return { $regex: "^" + v + "$" } } ,//完全一致 ,
+      }[modif](split[i]);
 
     for(let i2=0; i2<nameArray.length; i2++){
       queryArray.push({[nameArray[i2]]: modifSwitch })

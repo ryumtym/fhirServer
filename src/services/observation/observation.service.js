@@ -356,20 +356,18 @@ module.exports.search = (args) =>
 
     console.log(query)
  
-    // Query our collection for this observation
-    collection.find(query, (err, data) => {
-      if (err) {
+    collection.find(query).toArray().then(
+      (observations) => {
+        observations.forEach(function (element, i, returnArray) {
+          returnArray[i] = new Patient(element);
+        });
+        resolve(observations);
+      },
+      err => {
         logger.error('Error with Observation.search: ', err);
         return reject(err);
       }
-      // Observation is a observation cursor, pull documents out before resolving
-      data.toArray().then((observations) => {
-        observations.forEach(function (element, i, returnArray) {
-          returnArray[i] = new Observation(element);
-        });
-        resolve(observations);
-      });
-    });
+    )
   });
 
 module.exports.searchById = (args) =>

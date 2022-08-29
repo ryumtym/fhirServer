@@ -359,7 +359,7 @@ module.exports.search = (args) =>
     collection.find(query).toArray().then(
       (observations) => {
         observations.forEach(function (element, i, returnArray) {
-          returnArray[i] = new Patient(element);
+          returnArray[i] = new Observation(element);
         });
         resolve(observations);
       },

@@ -10,9 +10,9 @@ let generateCapabilityStatement = require('./capability.js').generateStatements;
 let mongoConfig = {
   connection: `mongodb://${env.MONGO_HOSTNAME}`,
   db_name: env.MONGO_DB_NAME,
-  options: {
-    auto_reconnect: true,
-  },
+  // options: {
+  //   auto_reconnect: true,
+  // },
 };
 
 // Set up whitelist

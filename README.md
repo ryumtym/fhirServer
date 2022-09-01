@@ -4,7 +4,10 @@
 
 [https://www.hl7.org/fhir/search.html#string]
 
-- dateQuery -> ``sa,eb,ap``に関してはhapifhirでも使われていないので優先度低 [https://www.hl7.org/fhir/search.html#string]
+- memo: dateQuery ``sa,eb,ap``に関してはhapifhirでも使われていないので優先度低 [https://www.hl7.org/fhir/search.html#string]
+- 2022/09/01 [fhir_crud#update](https://hl7.org/fhir/http.html#update)
+  - update時にreq.bodyに``id``が無い際のエラー処理追加(要コード変更)
+  - update時に指定されたオブジェクト全体を上書きするよう変更　
 
 
 _**fhirJsonData for**_ [mongoplayground](https://mongoplayground.net/)

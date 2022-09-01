@@ -421,34 +421,42 @@ module.exports.update = (args, { req }) =>
       }
 
       let cleaned = JSON.parse(JSON.stringify(patient));
-      let doc = Object.assign(cleaned, { _id: id });
-
+      // let doc = Object.assign(cleaned, { _id: id });
+      let doc = Object.assign(cleaned);
       // Insert/update our patient record
-      collection.findOneAndUpdate({ id: id }, { $set: doc }, { upsert: true }, (err2, res) => {
-        if (err2) {
-          logger.error('Error with Patient.update: ', err2);
-          return reject(err2);
-        }
-
-        // save to history
-        let history_collection = db.collection(`${COLLECTION.PATIENT}_${base_version}_History`);
-
-        let history_patient = Object.assign(cleaned, { _id: id + "-" +cleaned.meta.versionId });
-
-        // Insert our patient record to history but don't assign _id
-        return history_collection.insertOne(history_patient, (err3) => {
-          if (err3) {
-            logger.error('Error with PatientHistory.create: ', err3);
-            return reject(err3);
+      if ('id' in doc){
+        collection.findOneAndUpdate({ id: id }, { $set: doc }, { upsert: true }, (err2, res) => {
+          if (err2) {
+            logger.error('Error with Patient.update: ', err2);
+            return reject(err2);
           }
+  
+          // save to history
+          let history_collection = db.collection(`${COLLECTION.PATIENT}_${base_version}_History`);
+          
+          // let history_patient = Object.assign(cleaned, { _id: id + "-" +cleaned.meta.versionId });
+            let history_patient = Object.assign(cleaned);
 
-          return resolve({
-            id: id,
-            created: res.lastErrorObject && !res.lastErrorObject.updatedExisting,
-            resource_version: doc.meta.versionId,
+          // Insert our patient record to history but don't assign _id
+          return history_collection.insertOne(history_patient, (err3) => {
+            if (err3) {
+              logger.error('Error with PatientHistory.create: ', err3);
+              return reject(err3);
+            }
+  
+            return resolve({
+              id: id,
+              created: res.lastErrorObject && !res.lastErrorObject.updatedExisting,
+              resource_version: doc.meta.versionId,
+            });
           });
         });
-      });
+      } else{
+          const err = new Error('Can not update resource, resource body must contain an ID element for update (PUT) operation');
+          // logger.error(err)
+          return reject(err)
+      }
+
     });
   });
 

@@ -406,26 +406,30 @@ module.exports.update = (args, { req }) =>
 
       let Patient = getPatient(base_version);
       let patient = new Patient(resource);
+      let jst = moment.utc().local().format('YYYY-MM-DDTHH:mm:ssZ')
 
       if (data && data.meta) {
         let foundPatient = new Patient(data);
         let meta = foundPatient.meta;
         meta.versionId = `${parseInt(foundPatient.meta.versionId) + 1}`;
+        meta.lastUpdated = jst,
         patient.meta = meta;
       } else {
         let Meta = getMeta(base_version);
         patient.meta = new Meta({
           versionId: '1',
-          lastUpdated: moment.utc().format('YYYY-MM-DDTHH:mm:ssZ'),
+          lastUpdated: jst,
         });
       }
 
       let cleaned = JSON.parse(JSON.stringify(patient));
       // let doc = Object.assign(cleaned, { _id: id });
       let doc = Object.assign(cleaned);
+      console.log(doc)
+
       // Insert/update our patient record
       if ('id' in doc){
-        collection.findOneAndUpdate({ id: id }, { $set: doc }, { upsert: true }, (err2, res) => {
+        collection.replaceOne({ id: id }, doc , { upsert: true }, (err2, res) => { //overwrite
           if (err2) {
             logger.error('Error with Patient.update: ', err2);
             return reject(err2);

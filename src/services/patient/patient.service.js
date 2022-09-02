@@ -88,7 +88,6 @@ let buildStu3SearchQuery = (args) => {
   let ors = [];
 
 
-
   if (_id) {
     query.id = _id;
   }
@@ -97,9 +96,6 @@ let buildStu3SearchQuery = (args) => {
     query =  dateQB(_lastUpdated,'meta.lastUpdated')
     // console.log(query)
   }
-
-
-
 
   if (active) { 
     console.log(active)
@@ -291,6 +287,7 @@ module.exports.search = (args) =>
     console.log(query)
 
     // Query our collection for this observation
+    // collection.find(query).limit(20).toArray().then(
     collection.find(query).toArray().then(
       (patients) => {
         patients.forEach(function (element, i, returnArray) {
@@ -603,21 +600,20 @@ module.exports.historyById = (args, context) =>
     let history_collection = db.collection(`${COLLECTION.PATIENT}_${base_version}_History`);
     let Patient = getPatient(base_version);
 
-    // Query our collection for this observation
-    history_collection.find(query, (err, data) => {
-      if (err) {
-        logger.error('Error with Patient.historyById: ', err);
-        return reject(err);
-      }
-
-      // Patient is a patient cursor, pull documents out before resolving
-      data.toArray().then((patients) => {
+    // Query our collection and pull documents out of array
+    // TODO: Be sure this strategy is used by other services implemented
+    history_collection.find(query).toArray().then(
+      (patients) => {
         patients.forEach(function (element, i, returnArray) {
           returnArray[i] = new Patient(element);
         });
         resolve(patients);
-      });
-    });
+      },
+      err => {
+        logger.error('Error with Patient.search: ', err);
+        return reject(err);
+      }
+    )
   });
 
 module.exports.patch = (args, context) =>

@@ -23,9 +23,9 @@ module.exports.strategy = new Strategy(function (token, done) {
     .send({ token: token, client_id: process.env.CLIENT_ID})
     .then((introspectionResponse) => {
       const decoded_token = introspectionResponse.body;
-      // console.log(token)
-      // console.log(process.env.CLIENT_ID)
-      // console.log(decoded_token);
+      // console.log({token:token})
+      // console.log({cliendID:process.env.CLIENT_ID})
+      // console.log({token:decoded_token});
 
       if (decoded_token.active) {
         // TODO: context could come in many forms, you need to decide how to handle it.

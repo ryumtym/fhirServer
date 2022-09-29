@@ -73,11 +73,11 @@ let fhirServerConfig = {
   security: [//ここで認証urlとtokenアクセスurlを指定(ここだけenv.jsonで指定しない)
     {
       url: 'authorize',
-      valueUri: `${env.AUTH_SERVER_URI}/auth/realms/test/protocol/openid-connect/auth`,
+      valueUri: `${env.AUTH_SERVER_URI}/auth`,
     },
     {
       url: 'token',
-      valueUri: `${env.AUTH_SERVER_URI}/auth/realms/test/protocol/openid-connect/token`,
+      valueUri: `${env.AUTH_SERVER_URI}/token`,
     },
     // optional - registration
   ],
@@ -98,6 +98,10 @@ let fhirServerConfig = {
     },
     Patient: {
       service: './src/services/patient/patient.service.js',
+      versions: [VERSIONS['4_0_0']],
+    },
+    Organization: {
+      service: './src/services/organization/organization.service.js',
       versions: [VERSIONS['4_0_0']],
     },
   },

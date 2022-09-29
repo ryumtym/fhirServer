@@ -115,7 +115,7 @@ let addressQueryBuilder = function (target) {
       queryArray.push({[addressArray[i2]]: { $regex: "^" + totalSplit[i], $options: "i" } })
     }
   }
-
+  
   // return {"$or" : queryArray}
   return [queryArray]
 };

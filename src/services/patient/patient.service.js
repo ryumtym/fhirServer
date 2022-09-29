@@ -21,6 +21,8 @@ const {
   dateQB,
 } = require('../../utils/querybuilder.util');
 
+const defaultRecordCounts = 10;
+
 let getPatient = (base_version) => {
   return resolveSchema(base_version, 'Patient');
 };
@@ -28,6 +30,46 @@ let getPatient = (base_version) => {
 let getMeta = (base_version) => {
   return resolveSchema(base_version, 'Meta');
 };
+
+
+let buildStu3SearchResultQuery = (args) => {
+  let query = {};
+  let { _count, _sort, _elements } = args;
+
+  //https://www.hl7.org/fhir/search.html#elements
+  const patientComplexArr = [ "identifier", "-identifier", "name", "-name", "telecom", "-telecom" ]
+
+  if(_count) { 
+    query.count  = _count  
+  }
+  
+  if(_sort ) { 
+    query.sort   =  { [_sort] : 1 } 
+  }
+
+  if(_elements){
+    const queryBuilder = {'_id': 1,} //9/29時点で_element使用時に_idを表示させるかさせないか -> 仕様書から見つからない
+    const hasHyphen = /^([-])([a-zA-Z0-9.,$;]+$)/ //1文字目が ハイフンではじまるか?
+    const splitArr = _elements.split(',')
+    //https://www.hl7.org/fhir/search.html#elements　queryValueから_elementで使用可能な値のみをフィルタし返す
+    const filteredArr = splitArr.filter((elm) => patientComplexArr.includes(elm) && elm !== undefined);
+
+    for(let i= 0; i<filteredArr.length; i++){
+      const group = hasHyphen.exec(filteredArr[i])
+      if(hasHyphen.test(filteredArr[i])){
+        queryBuilder[group[2]] = 0
+      } else {
+        queryBuilder[filteredArr[i]] = 1
+      }
+    }
+
+    // console.log(queryBuilder)    
+
+    query.element = {"fields": queryBuilder }
+  }
+
+  return query
+}
 
 let buildStu3SearchQuery = (args) => {
 
@@ -276,19 +318,30 @@ module.exports.search = (args) =>
     let { base_version } = args;
     let query = {};
     query = buildStu3SearchQuery(args);
-    
+
+    // 20220921
+    let resParams = {}
+    resParams = buildStu3SearchResultQuery(args)
+    const obj = {
+      count   : resParams.count || defaultRecordCounts,
+      sort    : resParams.sort,
+      element : resParams.element,
+    }
+
+    // console.log(resParams)
 
     // Grab an instance of our DB and collection
     let db = globals.get(CLIENT_DB);
     let collection = db.collection(`${COLLECTION.PATIENT}_${base_version}`);
     let Patient = getPatient(base_version);
 
-    // console.log(args)
-    console.log(query)
+    // console.log(query)
+    console.log(obj.element)
 
     // Query our collection for this observation
     // collection.find(query).limit(20).toArray().then(
-    collection.find(query).toArray().then(
+    //https://stackoverflow.com/questions/32855644/mongodb-not-returning-specific-fields
+    collection.find(query,obj.element).limit(obj.count).sort(obj.sort).collation().toArray().then(
       (patients) => {
         patients.forEach(function (element, i, returnArray) {
           returnArray[i] = new Patient(element);

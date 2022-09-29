@@ -36,48 +36,39 @@ let buildStu3SearchResultQuery = (args) => {
   let query = {};
   let { _count, _sort, _elements } = args;
 
-  //https://www.hl7.org/fhir/search.html#elements
-  const patientComplexArr = [ "identifier", "-identifier", "name", "-name", "telecom", "-telecom" ]
-
-  if(_count) { 
-    query.count  = _count  
-  }
-  
-  if(_sort ) { 
-    query.sort   =  { [_sort] : 1 } 
-  }
+  if(_count) { query.count  = _count }
+  if(_sort ) { query.sort   =  { [_sort] : 1 } }
 
   if(_elements){
     //https://www.hl7.org/fhir/search.html#elements
-    const regexp = /^([-])([a-zA-Z0-9.,$;]+$)/
+    //https://www.mongodb.com/community/forums/t/projection-does-not-allow-exclusion-inclusion-together/31756
+    //https://chaika.hatenablog.com/entry/2019/05/07/083000
 
+    const regexp = /^([-])([a-zA-Z0-9.,$;]+$)/ //hypenChecker
     const patientComplexArr = [ "address", "-address",  "identifier", "-identifier",  "name", "-name",  "telecom", "-telecom" ]
     const splitArr = _elements.split(',') //渡された値をカンマ区切りで配列化
 
-    //splitArrから_elementsで使用可能な値のみをフィルタして返す 要参照: [https://www.hl7.org/fhir/search.html#elements]
-    const filteredArr = splitArr.filter((elm) => patientComplexArr.includes(elm) && elm !== undefined);
+    //splitArrから_elementsで使用可能な値のみをフィルタして返す
+    const useableKeyArr = splitArr.filter((elm) => patientComplexArr.includes(elm) && elm !== undefined);
+    const necessaryKey = []
+    const unnecessaryKey = []
 
-    let positiveArr = []
-    let negativeArr = []
-
-    for(let i= 0; i<filteredArr.length; i++){ //1文字目がハイフンならnegativeArrに　それ以外ならpositiveArrに
-      const v = filteredArr[i]
+    for(let i= 0; i<useableKeyArr.length; i++){ //1文字目がハイフンならunnecessaryKeyに　それ以外ならnecessaryKeyに
+      const v = useableKeyArr[i]
       const hasHyphen = regexp.exec(v)
-      if(hasHyphen){ //[boolCheck]1文字目がハイフンか 
-        negativeArr.push(v)
+      if(hasHyphen){ 
+        unnecessaryKey.push(v)
       } else {
-        positiveArr.push(v)
+        necessaryKey.push(v)
       }
     }
 
-    //https://www.mongodb.com/community/forums/t/projection-does-not-allow-exclusion-inclusion-together/31756
-    //https://chaika.hatenablog.com/entry/2019/05/07/083000
-    //もし配列両方に値が入ってたら or もしpositiveArr配列にのみ値が入ってたら  -> 正のみでクエリをつくる
-    //もしnegativeArrにのみ入っていたなら -> ハイフンを取り除いて負のみでクエリをつくる
-    if(positiveArr.length != 0 && negativeArr.length != 0 || positiveArr.length != 0 && negativeArr.length == 0 ){ 
-      query.element   =  { fields: positiveArr.reduce((obj, data) => ({...obj, [data]: 1}), {}) } 
-    } else if (positiveArr.length == 0 && negativeArr.length != 0 ){  
-      query.element   =  { fields: negativeArr.reduce((obj, data) => ({...obj, [data.substr(1)]: 0}), {}) }
+    //もし配列両方に値が入ってたら or もしnecessaryKey配列にのみ値が入ってたら  -> necessaryKeyのみでクエリをつくる
+    if(necessaryKey.length && unnecessaryKey.length  || necessaryKey.length  && !unnecessaryKey.length){ 
+      query.element   =  { fields: necessaryKey.reduce((obj, elm) => ({...obj, [elm]: 1}), {}) } 
+    //もしunnecessaryKeyにのみ値が入っていたなら -> ハイフンを取り除いてunnecessaryKeyのみでクエリをつくる
+    } else if (!necessaryKey.length  && unnecessaryKey.length ){  
+      query.element   =  { fields: unnecessaryKey.reduce((obj, elm) => ({...obj, [elm.substr(1)]: 0}), {}) }
     }
 
   }

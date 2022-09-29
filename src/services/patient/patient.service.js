@@ -48,26 +48,39 @@ let buildStu3SearchResultQuery = (args) => {
   }
 
   if(_elements){
-    const queryBuilder = {'_id': 1,} //9/29時点で_element使用時に_idを表示させるかさせないか -> 仕様書から見つからない
-    const hasHyphen = /^([-])([a-zA-Z0-9.,$;]+$)/ //1文字目が ハイフンではじまるか?
-    const splitArr = _elements.split(',')
-    //https://www.hl7.org/fhir/search.html#elements　queryValueから_elementで使用可能な値のみをフィルタし返す
+    //https://www.hl7.org/fhir/search.html#elements
+    const regexp = /^([-])([a-zA-Z0-9.,$;]+$)/
+
+    const patientComplexArr = [ "address", "-address",  "identifier", "-identifier",  "name", "-name",  "telecom", "-telecom" ]
+    const splitArr = _elements.split(',') //渡された値をカンマ区切りで配列化
+
+    //splitArrから_elementsで使用可能な値のみをフィルタして返す 要参照: [https://www.hl7.org/fhir/search.html#elements]
     const filteredArr = splitArr.filter((elm) => patientComplexArr.includes(elm) && elm !== undefined);
 
-    for(let i= 0; i<filteredArr.length; i++){
-      const group = hasHyphen.exec(filteredArr[i])
-      if(hasHyphen.test(filteredArr[i])){
-        queryBuilder[group[2]] = 0
+    let positiveArr = []
+    let negativeArr = []
+
+    for(let i= 0; i<filteredArr.length; i++){ //1文字目がハイフンならnegativeArrに　それ以外ならpositiveArrに
+      const v = filteredArr[i]
+      const hasHyphen = regexp.exec(v)
+      if(hasHyphen){ //[boolCheck]1文字目がハイフンか 
+        negativeArr.push(v)
       } else {
-        queryBuilder[filteredArr[i]] = 1
+        positiveArr.push(v)
       }
     }
 
-    // console.log(queryBuilder)    
+    //https://www.mongodb.com/community/forums/t/projection-does-not-allow-exclusion-inclusion-together/31756
+    //https://chaika.hatenablog.com/entry/2019/05/07/083000
+    //もし配列両方に値が入ってたら or もしpositiveArr配列にのみ値が入ってたら  -> 正のみでクエリをつくる
+    //もしnegativeArrにのみ入っていたなら -> ハイフンを取り除いて負のみでクエリをつくる
+    if(positiveArr.length != 0 && negativeArr.length != 0 || positiveArr.length != 0 && negativeArr.length == 0 ){ 
+      query.element   =  { fields: positiveArr.reduce((obj, data) => ({...obj, [data]: 1}), {}) } 
+    } else if (positiveArr.length == 0 && negativeArr.length != 0 ){  
+      query.element   =  { fields: negativeArr.reduce((obj, data) => ({...obj, [data.substr(1)]: 0}), {}) }
+    }
 
-    query.element = {"fields": queryBuilder }
   }
-
   return query
 }
 

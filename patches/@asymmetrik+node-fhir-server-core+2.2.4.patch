@@ -1,3 +1,43 @@
+diff --git a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/resource.parameters.js b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/resource.parameters.js
+index 8886a1b..2da552f 100644
+--- a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/resource.parameters.js
++++ b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/resource.parameters.js
+@@ -59,5 +59,33 @@ module.exports = {
+     xpath: 'Resource.meta.tag',
+     definition: 'http://hl7.org/fhir/SearchParameter/Resource-tag',
+     description: 'Tags applied to this resource'
+-  }
++  },
++  _sort: {
++    type: 'string',
++    fhirtype: 'string',
++    xpath: '',
++    definition: '',
++    description: 'Order to sort results in (can repeat for inner sort orders)'
++  },
++  _count: {
++    type: 'number',
++    fhirtype: 'number',
++    xpath: '',
++    definition: '',
++    description: 'Number of results per page'
++  },
++  _elements: {
++    type: 'string',
++    fhirtype: 'string',
++    xpath: '',
++    definition: '',
++    description: ''
++  },
++  _include: {
++    type: 'string',
++    fhirtype: 'string',
++    xpath: '',
++    definition: '',
++    description: 'Other resources to include in the search results that search matches point to'
++  },
+ };
+\ No newline at end of file
 diff --git a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/schemas/observation.js b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/schemas/observation.js
 index c3701ca..d0211d6 100644
 --- a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/schemas/observation.js
@@ -18,8 +58,32 @@ index c3701ca..d0211d6 100644
        }
      });
      Object.defineProperty(this, 'effectivePeriod', {
+diff --git a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/router.js b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/router.js
+index c1711ab..1ef74a8 100644
+--- a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/router.js
++++ b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/router.js
+@@ -115,7 +115,6 @@ function loadController(lowercaseKey, interaction, service) {
+ function enableOperationRoutesForProfile(app, config, profile, key, parameters, corsDefaults) {
+   // Error message we will use for invalid configurations
+   let errorMessage = `Invalid operation configuration for ${key}. Please ` + 'see the Operations wiki for instructions on how to use operations. ' + 'https://github.com/Asymmetrik/node-fhir-server-core/wiki/Operations';
+-
+   for (let op of profile.operation) {
+     let functionName = hyphenToCamelcase(op.name || '');
+     let hasController = profile.serviceModule ? Object.keys(profile.serviceModule).includes(functionName) : false; // Check for required configurations, must have name, route, method, and
+diff --git a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/params.utils.js b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/params.utils.js
+index ff294d0..cf6696e 100644
+--- a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/params.utils.js
++++ b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/params.utils.js
+@@ -56,6 +56,7 @@ const getSearchParameters = (profile, version, customArgsModule, logger) => {
+   allArguments = Object.assign(allArguments, getParameters(version, 'resource')); // Everyone has a DomainResource and Resource parameter we want to include
+   // except DSTU2(1_0_2), so do not attempt to assign that in DSTU2
+ 
++
+   if (version !== '1_0_2') {
+     allArguments = Object.assign(allArguments, getParameters(version, 'domainresource'));
+   } // Convert these into an array
 diff --git a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/sanitize.utils.js b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/sanitize.utils.js
-index 3e6f85c..41bb041 100644
+index 3e6f85c..4a0bd9d 100644
 --- a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/sanitize.utils.js
 +++ b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/sanitize.utils.js
 @@ -5,6 +5,7 @@ const errors = require('./error.utils');
@@ -102,7 +166,7 @@ index 3e6f85c..41bb041 100644
  /**
   * @function sanitizeMiddleware
   * @summary Sanitize the arguments by removing extra arguments, escaping some, and
-@@ -119,16 +166,20 @@ let findMatchWithName = (name = '', params = {}) => {
+@@ -119,15 +166,19 @@ let findMatchWithName = (name = '', params = {}) => {
   * @param {boolean} required - Should we throw if this argument is present and invalid, default is false
   */
  
@@ -112,18 +176,17 @@ index 3e6f85c..41bb041 100644
      let currentArgs = parseParams(req);
      let cleanArgs = {}; // filter only ones with version or no version
  
-+    // let searchParametersArr = ["_INCLUDE", "_REVINCLUDE", "_SORT", "_COUNT", "_SUMMARY", "_elements", "_CONTAINED", "_CONTAINEDTYPED"];
++    // let searchParametersArr = ["_INCLUDE", "_REVINCLUDE", "_sort", "_COUNT", "_SUMMARY", "_elements", "_CONTAINED", "_CONTAINEDTYPED"];
 +    let searchParametersArr = [];
 +
      let version_specific_params = config.filter(param => {
        return !param.versions || param.versions === req.params.base_version;
      }); // Check each argument in the config
++    // console.log(config)
++
  
-+
-+
      for (let i = 0; i < version_specific_params.length; i++) {
        let conf = version_specific_params[i];
-       let {
 @@ -136,12 +187,14 @@ let sanitizeMiddleware = function (config) {
          value
        } = findMatchWithName(conf.name, currentArgs); // If the argument is required but not present
@@ -140,7 +203,7 @@ index 3e6f85c..41bb041 100644
        try {
          if (value) {
            cleanArgs[field] = parseValue(conf.type, value);
-@@ -150,12 +203,20 @@ let sanitizeMiddleware = function (config) {
+@@ -150,12 +203,21 @@ let sanitizeMiddleware = function (config) {
          return next(errors.invalidParameter(conf.name + ' is invalid', req.params.base_version));
        } // If we have the arg and the type is wrong, throw invalid arg
  
@@ -152,6 +215,7 @@ index 3e6f85c..41bb041 100644
  
 +    // console.log("n-f-c/dist/server-utils/sanitize.utill/sanitizeMiddleware/cleanArgs" + JSON.stringify(cleanArgs))
 +    // console.log("n-f-c/dist/server-utils/sanitize.utill/sanitizeMiddleware/currentArgs" + JSON.stringify(currentArgs))
++    // console.log(searchParametersArr)
 +    if(searchParameterChecker(modifiersChecker(currentArgs), searchParametersArr)){
 +      return next(errors.invalidParameter(
 +        'Invalid parameter: ' + JSON.stringify(currentArgs) +  '  Valid search parameters for this search are : ' +  searchParametersArr 

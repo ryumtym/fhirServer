@@ -34,10 +34,16 @@ let getMeta = (base_version) => {
 
 let buildStu3SearchResultQuery = (args) => {
   let query = {};
-  let { _count, _sort, _elements } = args;
+  let { _count, _sort, _elements, _include } = args;
 
   if(_count) { query.count  = _count }
+
   if(_sort ) { query.sort   =  { [_sort] : 1 } }
+
+  if(_include ) { 
+    const v = _include.split(':')[1] //exampl: _include = patient:organization -> query.include = Organization
+    query.include = v && v[0].toUpperCase() + v.slice(1)
+  }
 
   if(_elements){
     //https://www.hl7.org/fhir/search.html#elements
@@ -50,29 +56,31 @@ let buildStu3SearchResultQuery = (args) => {
 
     //splitArrから_elementsで使用可能な値のみをフィルタして返す
     const useableKeyArr = splitArr.filter((elm) => patientComplexArr.includes(elm) && elm !== undefined);
-    const necessaryKey = []
-    const unnecessaryKey = []
+    const inclKey = []
+    const exclKey = []
 
     for(let i= 0; i<useableKeyArr.length; i++){ //1文字目がハイフンならunnecessaryKeyに　それ以外ならnecessaryKeyに
       const v = useableKeyArr[i]
       const hasHyphen = regexp.exec(v)
       if(hasHyphen){ 
-        unnecessaryKey.push(v)
+        exclKey.push(v)
       } else {
-        necessaryKey.push(v)
+        inclKey.push(v)
       }
     }
 
-    //もし配列両方に値が入ってたら or もしnecessaryKey配列にのみ値が入ってたら  -> necessaryKeyのみでクエリをつくる
-    if(necessaryKey.length && unnecessaryKey.length  || necessaryKey.length  && !unnecessaryKey.length){ 
-      query.element   =  { fields: necessaryKey.reduce((obj, elm) => ({...obj, [elm]: 1}), {}) } 
-    //もしunnecessaryKeyにのみ値が入っていたなら -> ハイフンを取り除いてunnecessaryKeyのみでクエリをつくる
-    } else if (!necessaryKey.length  && unnecessaryKey.length ){  
-      query.element   =  { fields: unnecessaryKey.reduce((obj, elm) => ({...obj, [elm.substr(1)]: 0}), {}) }
+    //もし配列両方に値が入ってたら or もしincl配列にのみ値が入ってたら  -> inclKeyのみでクエリをつくる
+    if(inclKey.length && exclKey.length  || inclKey.length  && !exclKey.length){ 
+      query.element   =  { fields: inclKey.reduce((obj, elm) => ({...obj, [elm]: 1}), {"id":1}) } 
+    //もしexclKeyにのみ値が入っていたなら -> ハイフンを取り除いてexclKeyのみでクエリをつくる
+    } else if (!inclKey.length  && exclKey.length ){  
+      query.element   =  { fields: exclKey.reduce((obj, elm) => ({...obj, [elm.substr(1)]: 0}), {"id":1}) }
     }
 
   }
+  
   return query
+
 }
 
 let buildStu3SearchQuery = (args) => {
@@ -309,6 +317,14 @@ let buildStu3SearchQuery = (args) => {
   return query;
 };
 
+const patientReferenceParams = {
+  "Organization":{
+    "path":"managingOrganization.reference"
+  },
+  "general-practitioner":{
+    "path":"generalPractitioner.reference"
+  }
+}
 
 /**
  *
@@ -330,33 +346,93 @@ module.exports.search = (args) =>
       count   : resParams.count || defaultRecordCounts,
       sort    : resParams.sort,
       element : resParams.element,
+      include : resParams.include
     }
 
-    // console.log(resParams)
+    console.log(obj)
+    // console.log(query)
 
     // Grab an instance of our DB and collection
     let db = globals.get(CLIENT_DB);
     let collection = db.collection(`${COLLECTION.PATIENT}_${base_version}`);
     let Patient = getPatient(base_version);
 
-    // console.log(query)
-    console.log(obj.element)
+    const test  = patientReferenceParams[obj.include]?.path //if referenceParams.path has obj.include then
+    console.log(query?.id)
 
-    // Query our collection for this observation
-    // collection.find(query).limit(20).toArray().then(
-    //https://stackoverflow.com/questions/32855644/mongodb-not-returning-specific-fields
-    collection.find(query,obj.element).limit(obj.count).sort(obj.sort).collation().toArray().then(
-      (patients) => {
-        patients.forEach(function (element, i, returnArray) {
-          returnArray[i] = new Patient(element);
-        });
-        resolve(patients);
-      },
-      err => {
-        logger.error('Error with Patient.search: ', err);
-        return reject(err);
-      }
-    )
+    //https://stackoverflow.com/questions/63461684/mongodb-aggregation-match-input-parameter-if-provided-else-do-not-match
+    if(obj.include){
+      collection.aggregate([
+        {
+          $match: {
+            $expr: {
+              $cond: [
+                { $in: [query?.id, [null, "", "undefined"]] },
+                true,
+                { $eq: ["$id", query?.id] }
+              ]
+            }
+          }
+        },
+        // { $match: { "id": query?.id } },
+        {
+          $addFields: {
+            "managingOrganization.reference": {
+              $map: {
+                input: [ { $arrayElemAt: [ { $split: [ "$managingOrganization.reference", "/" ] }, 1 ] } ],
+                in: {  $toString: { $trim: { input: "$$this"  } } }
+              }
+            },
+          }
+        },
+        {
+          $lookup: {
+            from: "Organization_4_0_0",
+            as: "managingOrganization.reference",
+            localField: "managingOrganization.reference",
+            foreignField: "id"
+          }
+        },
+        {
+          $unwind: {
+            path: "$managingOrganization.reference",
+            preserveNullAndEmptyArrays: false
+          }
+        },
+        {
+          $addFields: {
+            "managingOrganization.reference": "$managingOrganization.reference"
+          }
+        }
+      ]).toArray().then(
+        (patients) => {
+          patients.forEach(function (element, i, returnArray) {
+            returnArray[i] = new Patient(element);
+          });
+          resolve(patients)
+        },
+      )
+    } else {
+      // Query our collection for this patient
+      // collection.find(query).limit(20).toArray().then(
+      //https://stackoverflow.com/questions/32855644/mongodb-not-returning-specific-fields
+      collection.find(query,obj.element).limit(obj.count).sort(obj.sort).collation().toArray().then(
+        (patients) => {
+          patients.forEach(function (element, i, returnArray) {
+            returnArray[i] = new Patient(element);
+          });
+          resolve(patients);
+        },
+        err => {
+          logger.error('Error with Patient.search: ', err);
+          return reject(err);
+        }
+      )
+    }
+
+        
+
+
   });
 
 module.exports.searchById = (args) =>

@@ -176,10 +176,11 @@ let tokenQueryBuilder = function (target, type, field, required, dataType, modif
   let value = '';
 
   if(dataType === "boolean"){
+    const v = JSON.parse(target.toLowerCase())
     if(modifier === 'not' ){ //need change
-      queryBuilder[field] = {$ne: JSON.parse(target.toLowerCase())} //https://stackoverflow.com/questions/263965/how-can-i-convert-a-string-to-boolean-in-javascript
+      queryBuilder[field] = {$ne: v } //https://stackoverflow.com/questions/263965/how-can-i-convert-a-string-to-boolean-in-javascript
     } else {
-      queryBuilder[field] = {$eq: JSON.parse(target.toLowerCase())}
+      queryBuilder[field] = {$eq: v }
     }
   } else if(dataType === "string") {
     if(modifier === 'not' ){ //need change

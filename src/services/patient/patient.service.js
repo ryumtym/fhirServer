@@ -42,7 +42,8 @@ let buildStu3SearchResultQuery = (args) => {
 
   if(_include ) { 
     const v = _include.split(':')[1] //exampl: _include = patient:organization -> query.include = Organization
-    query.include = v && v[0].toUpperCase() + v.slice(1)
+    query.include = v
+    // query.include = v && v[0].toUpperCase() + v.slice(1)
   }
 
   if(_elements){
@@ -317,14 +318,6 @@ let buildStu3SearchQuery = (args) => {
   return query;
 };
 
-const patientReferenceParams = {
-  "Organization":{
-    "path":"managingOrganization.reference"
-  },
-  "general-practitioner":{
-    "path":"generalPractitioner.reference"
-  }
-}
 
 /**
  *
@@ -357,10 +350,12 @@ module.exports.search = (args) =>
     let collection = db.collection(`${COLLECTION.PATIENT}_${base_version}`);
     let Patient = getPatient(base_version);
 
-    const test  = patientReferenceParams[obj.include]?.path //if referenceParams.path has obj.include then
-    console.log(query?.id)
 
+    // console.log(query?.id)
+
+    //2022-10-07 動作するけど良い案ではない -> reference先が複数ある場合やその都度指定したい際の動作を考慮
     //https://stackoverflow.com/questions/63461684/mongodb-aggregation-match-input-parameter-if-provided-else-do-not-match
+    //https://stackoverflow.com/questions/73944512/retrieve-info-from-different-collections-based-on-different-values-mongodb
     if(obj.include){
       collection.aggregate([
         {
@@ -404,7 +399,7 @@ module.exports.search = (args) =>
             "managingOrganization.reference": "$managingOrganization.reference"
           }
         }
-      ]).toArray().then(
+      ]).limit(obj.count).toArray().then(
         (patients) => {
           patients.forEach(function (element, i, returnArray) {
             returnArray[i] = new Patient(element);

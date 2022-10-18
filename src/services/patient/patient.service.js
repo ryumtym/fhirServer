@@ -8,6 +8,7 @@ const globals = require('../../globals');
 const jsonpatch = require('fast-json-patch');
 
 const { getUuid } = require('../../utils/uid.util');
+const { capitalizeInitial } = require('../../utils/functions.util');
 
 const logger = require('@asymmetrik/node-fhir-server-core').loggers.get();
 
@@ -20,6 +21,7 @@ const {
   dateQueryBuilder,
   dateQB,
 } = require('../../utils/querybuilder.util');
+const { forEach } = require('../../globals');
 
 const defaultRecordCounts = 10;
 
@@ -41,41 +43,77 @@ let buildStu3SearchResultQuery = (args) => {
   if(_sort ) { query.sort   =  { [_sort] : 1 } }
 
   if(_include ) { 
-    const v = _include.split(':')[1] //exampl: _include = patient:organization -> query.include = Organization
+    //正規表現: カンマ区切りで分割  eg: Patient:organization -> match1=Patient, match2=organization
+    const reg = /\w+[^:]+/g  ///\w+\s*(?:(?:;(?:\s*\w+\s*)?)+)?/
+    const v = _include.match(reg).slice(1)
     query.include = v
-    // query.include = v && v[0].toUpperCase() + v.slice(1)
   }
-
+  
   if(_elements){
     //https://www.hl7.org/fhir/search.html#elements
     //https://www.mongodb.com/community/forums/t/projection-does-not-allow-exclusion-inclusion-together/31756
     //https://chaika.hatenablog.com/entry/2019/05/07/083000
+    const regexp = /^([-])([a-zA-Z0-9.,$;]+$)/ //hyphenChecker
 
-    const regexp = /^([-])([a-zA-Z0-9.,$;]+$)/ //hypenChecker
-    const patientComplexArr = [ "address", "-address",  "identifier", "-identifier",  "name", "-name",  "telecom", "-telecom" ]
-    const splitArr = _elements.split(',') //渡された値をカンマ区切りで配列化
+    // _elements検索ができる値を格納
+    const patient_4_0_0ComplexArr = [ 
+      "address", 
+      "-address",  
+      "address.line", 
+      "-address.line" ,
+      "address.city", 
+      "-address.city" ,
+      "address.district", 
+      "-address.district" ,
+      "address.state", 
+      "-address.state" ,
+      "address.country", 
+      "-address.country" ,
+      "address.postalCode", 
+      "-address.postalCode" ,
+      "identifier", 
+      "-identifier",  
+      "name", 
+      "-name", 
+      "name.family", 
+      "-name.family", 
+      "name.give", 
+      "-name.give", 
+      "name.prefix", 
+      "-name.prefix", 
+      "name.suffix", 
+      "-name.suffix", 
+      "telecom", 
+      "-telecom" ,
+      "link", 
+      "-link" 
+    ]
+
+    //渡された値をカンマ区切りで配列化
+    const splitArr = _elements.split(',') 
 
     //splitArrから_elementsで使用可能な値のみをフィルタして返す
-    const useableKeyArr = splitArr.filter((elm) => patientComplexArr.includes(elm) && elm !== undefined);
-    const inclKey = []
-    const exclKey = []
+    const useableKeyArr = splitArr.filter((elm) => patient_4_0_0ComplexArr.includes(elm) && elm !== undefined);
+    const visibleElm = []
+    const hiddenElm = []
 
-    for(let i= 0; i<useableKeyArr.length; i++){ //1文字目がハイフンならunnecessaryKeyに　それ以外ならnecessaryKeyに
+    //1文字目がハイフンならunnecessaryKeyに　それ以外ならnecessaryKeyに
+    for(let i= 0; i<useableKeyArr.length; i++){ 
       const v = useableKeyArr[i]
       const hasHyphen = regexp.exec(v)
       if(hasHyphen){ 
-        exclKey.push(v)
+        hiddenElm.push(v)
       } else {
-        inclKey.push(v)
+        visibleElm.push(v)              
       }
     }
 
-    //もし配列両方に値が入ってたら or もしincl配列にのみ値が入ってたら  -> inclKeyのみでクエリをつくる
-    if(inclKey.length && exclKey.length  || inclKey.length  && !exclKey.length){ 
-      query.element   =  { fields: inclKey.reduce((obj, elm) => ({...obj, [elm]: 1}), {"id":1}) } 
-    //もしexclKeyにのみ値が入っていたなら -> ハイフンを取り除いてexclKeyのみでクエリをつくる
-    } else if (!inclKey.length  && exclKey.length ){  
-      query.element   =  { fields: exclKey.reduce((obj, elm) => ({...obj, [elm.substr(1)]: 0}), {"id":1}) }
+    //もし配列両方に値が入ってたら or もしvisibleElm配列にのみ値が入ってたら  -> visibleElmのみでクエリをつくる
+    if(visibleElm.length && hiddenElm.length  || visibleElm.length  && !hiddenElm.length){ 
+      query.element   =  { fields: visibleElm.reduce((obj, elm) => ({...obj, [elm]: 1}), {"_id":1}) } 
+    //もしhiddenElmにのみ値が入っていたなら -> ハイフンを取り除いてhiddenElmのみでクエリをつくる
+    } else if (!visibleElm.length  && hiddenElm.length ){  
+      query.element   =  { fields: hiddenElm.reduce((obj, elm) => ({...obj, [elm.substr(1)]: 0}), {"_id":1}) }
     }
 
   }
@@ -97,6 +135,7 @@ let buildStu3SearchQuery = (args) => {
 
   let active = args['active'];
   let activeNot = args['active:not'];
+  let activeMissing = args['active:missing'];
 
   let address = args['address'];
 
@@ -165,6 +204,8 @@ let buildStu3SearchQuery = (args) => {
       query[i] = queryBuilder[i];
     }
     // query.active =  {$ne: JSON.parse(activeNot.toLowerCase())}
+  } else if(activeMissing){ //https://www.mongodb.com/community/forums/t/query-performance-with-null-vs-exists/108103/3
+    query = { active: null }
   }
 
   if(address){
@@ -319,6 +360,18 @@ let buildStu3SearchQuery = (args) => {
 };
 
 
+const patient4_0_0_ReferenceTypeParams = {
+  "organization":{
+    "path":"managingOrganization.reference"
+  },
+  "general-practitioner":{
+    "path":"generalPractitioner.reference"
+  },
+  "link":{
+    "path":"link.other"
+  }
+}
+
 /**
  *
  * @param {*} args
@@ -335,6 +388,9 @@ module.exports.search = (args) =>
     // 20220921
     let resParams = {}
     resParams = buildStu3SearchResultQuery(args)
+
+
+
     const obj = {
       count   : resParams.count || defaultRecordCounts,
       sort    : resParams.sort,
@@ -343,73 +399,54 @@ module.exports.search = (args) =>
     }
 
     console.log(obj)
-    // console.log(query)
+    console.log(query)
 
     // Grab an instance of our DB and collection
     let db = globals.get(CLIENT_DB);
     let collection = db.collection(`${COLLECTION.PATIENT}_${base_version}`);
     let Patient = getPatient(base_version);
 
-
-    // console.log(query?.id)
-
-    //2022-10-07 動作するけど良い案ではない -> reference先が複数ある場合やその都度指定したい際の動作を考慮
-    //https://stackoverflow.com/questions/63461684/mongodb-aggregation-match-input-parameter-if-provided-else-do-not-match
-    //https://stackoverflow.com/questions/73944512/retrieve-info-from-different-collections-based-on-different-values-mongodb
     if(obj.include){
-      collection.aggregate([
-        {
-          $match: {
-            $expr: {
-              $cond: [
-                { $in: [query?.id, [null, "", "undefined"]] },
-                true,
-                { $eq: ["$id", query?.id] }
-              ]
+      
+      const referPath = patient4_0_0_ReferenceTypeParams[obj.include[0]]?.path
+
+      const referCollection = obj.include.length == 1 ?  
+        `${capitalizeInitial(obj.include[0])}_${base_version}` : //when length = 1 then
+        `${capitalizeInitial(obj.include[1])}_${base_version}`;  //when length != 1 then
+
+      // const existsQuery = {[referPath]:{ $exists: true } }
+      // const includeQuery = { fields: { "_id":0, "id": 1, [referPath]: 1 } }
+      
+      async function mergeTest() {
+        try {
+
+          // const resultData = await collection.find(existsQuery,includeQuery).toArray()
+          const originalData = await collection.find(query).limit(obj.count).toArray()
+          const [a,b] = referPath.split(".")
+
+          const mergeData = originalData.map(async(elm) => {
+            if(a in elm){
+              const id = elm[a][b].split('/')[1]
+              elm[a][b] = await db.collection(referCollection).find({"id":id}).toArray()
+              return elm
+            } else {
+              return elm
             }
-          }
-        },
-        // { $match: { "id": query?.id } },
-        {
-          $addFields: {
-            "managingOrganization.reference": {
-              $map: {
-                input: [ { $arrayElemAt: [ { $split: [ "$managingOrganization.reference", "/" ] }, 1 ] } ],
-                in: {  $toString: { $trim: { input: "$$this"  } } }
-              }
-            },
-          }
-        },
-        {
-          $lookup: {
-            from: "Organization_4_0_0",
-            as: "managingOrganization.reference",
-            localField: "managingOrganization.reference",
-            foreignField: "id"
-          }
-        },
-        {
-          $unwind: {
-            path: "$managingOrganization.reference",
-            preserveNullAndEmptyArrays: false
-          }
-        },
-        {
-          $addFields: {
-            "managingOrganization.reference": "$managingOrganization.reference"
-          }
-        }
-      ]).limit(obj.count).toArray().then(
-        (patients) => {
-          patients.forEach(function (element, i, returnArray) {
-            returnArray[i] = new Patient(element);
           });
-          resolve(patients)
-        },
-      )
+          
+          return await Promise.all(mergeData)
+
+
+        } catch (err) {
+          logger.error('Error with Patient.search: ', err);
+          return reject(err);
+        }
+     }
+
+    resolve(mergeTest())
+
     } else {
       // Query our collection for this patient
-      // collection.find(query).limit(20).toArray().then(
       //https://stackoverflow.com/questions/32855644/mongodb-not-returning-specific-fields
       collection.find(query,obj.element).limit(obj.count).sort(obj.sort).collation().toArray().then(
         (patients) => {
@@ -424,10 +461,6 @@ module.exports.search = (args) =>
         }
       )
     }
-
-        
-
-
   });
 
 module.exports.searchById = (args) =>

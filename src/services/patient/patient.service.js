@@ -34,7 +34,7 @@ let getMeta = (base_version) => {
 };
 
 
-let buildStu3SearchResultQuery = (args) => {
+let buildStu3ResultQuery = (args) => {
   let query = {};
   let { _count, _sort, _elements, _include } = args;
 
@@ -45,18 +45,16 @@ let buildStu3SearchResultQuery = (args) => {
   if(_include ) { 
     //正規表現: カンマ区切りで分割  eg: Patient:organization -> match1=Patient, match2=organization
     const reg = /\w+[^:]+/g  ///\w+\s*(?:(?:;(?:\s*\w+\s*)?)+)?/
-    const v = _include.match(reg).slice(1)
-    query.include = v
+    query.include = _include.match(reg).slice(1)
   }
   
   if(_elements){
     //https://www.hl7.org/fhir/search.html#elements
     //https://www.mongodb.com/community/forums/t/projection-does-not-allow-exclusion-inclusion-together/31756
     //https://chaika.hatenablog.com/entry/2019/05/07/083000
-    const regexp = /^([-])([a-zA-Z0-9.,$;]+$)/ //hyphenChecker
 
     // _elements検索ができる値を格納
-    const patient_4_0_0ComplexArr = [ 
+    const _elementsSearchableValues = [ 
       "address", 
       "-address",  
       "address.line", 
@@ -89,29 +87,18 @@ let buildStu3SearchResultQuery = (args) => {
       "-link" 
     ]
 
-    //渡された値をカンマ区切りで配列化
-    const splitArr = _elements.split(',') 
-
-    //splitArrから_elementsで使用可能な値のみをフィルタして返す
-    const useableKeyArr = splitArr.filter((elm) => patient_4_0_0ComplexArr.includes(elm) && elm !== undefined);
-    const visibleElm = []
-    const hiddenElm = []
-
-    //1文字目がハイフンならunnecessaryKeyに　それ以外ならnecessaryKeyに
-    for(let i= 0; i<useableKeyArr.length; i++){ 
-      const v = useableKeyArr[i]
-      const hasHyphen = regexp.exec(v)
-      if(hasHyphen){ 
-        hiddenElm.push(v)
-      } else {
-        visibleElm.push(v)              
-      }
-    }
+    //_elementsの値をカンマ区切りでsplitし、_elementsSearchableValuesと照らし合わせて使用可能な値のみ返す(undefinedも除外)
+    const validValues = _elements.split(',').filter((elm) => _elementsSearchableValues.includes(elm) && elm !== undefined);
+    
+    //1文字目がハイフンでないならvisibleElm 1文字目がハイフンならhiddenElm
+    const hyphenCheck = /^([-])([a-zA-Z0-9.,$;]+$)/
+    const visibleElm  = validValues.filter(value => !hyphenCheck.exec(value) );
+    const hiddenElm   = validValues.filter(value =>  hyphenCheck.exec(value) );
 
     //もし配列両方に値が入ってたら or もしvisibleElm配列にのみ値が入ってたら  -> visibleElmのみでクエリをつくる
+    //もしhiddenElmにのみ値が入っていたなら -> ハイフンを取り除いてhiddenElmのみでクエリをつくる
     if(visibleElm.length && hiddenElm.length  || visibleElm.length  && !hiddenElm.length){ 
       query.element   =  { fields: visibleElm.reduce((obj, elm) => ({...obj, [elm]: 1}), {"_id":1}) } 
-    //もしhiddenElmにのみ値が入っていたなら -> ハイフンを取り除いてhiddenElmのみでクエリをつくる
     } else if (!visibleElm.length  && hiddenElm.length ){  
       query.element   =  { fields: hiddenElm.reduce((obj, elm) => ({...obj, [elm.substr(1)]: 0}), {"_id":1}) }
     }
@@ -120,7 +107,7 @@ let buildStu3SearchResultQuery = (args) => {
   
   return query
 
-}
+};
 
 let buildStu3SearchQuery = (args) => {
 
@@ -359,21 +346,22 @@ let buildStu3SearchQuery = (args) => {
   return query;
 };
 
-
 const patient4_0_0_ReferenceTypeParams = {
   "organization":{
-    "path":"managingOrganization.reference"
+    "path":"managingOrganization.reference",
+    "type":"object"
   },
   "general-practitioner":{
-    "path":"generalPractitioner.reference"
+    "path":"generalPractitioner.reference",
+    "type": "array"
   },
   "link":{
-    "path":"link.other"
+    "path":"link.other",
+    "type": "array"
   }
-}
+};
 
 /**
- *
  * @param {*} args
  * @param {*} context
  * @param {*} logger
@@ -387,9 +375,7 @@ module.exports.search = (args) =>
 
     // 20220921
     let resParams = {}
-    resParams = buildStu3SearchResultQuery(args)
-
-
+    resParams = buildStu3ResultQuery(args)
 
     const obj = {
       count   : resParams.count || defaultRecordCounts,
@@ -399,7 +385,7 @@ module.exports.search = (args) =>
     }
 
     console.log(obj)
-    console.log(query)
+    console.log(query)  
 
     // Grab an instance of our DB and collection
     let db = globals.get(CLIENT_DB);
@@ -411,23 +397,22 @@ module.exports.search = (args) =>
       const referPath = patient4_0_0_ReferenceTypeParams[obj.include[0]]?.path
 
       const referCollection = obj.include.length == 1 ?  
-        `${capitalizeInitial(obj.include[0])}_${base_version}` : //when length = 1 then
+        `${capitalizeInitial(obj.include[0])}_${base_version}` : //when length  = 1 then
         `${capitalizeInitial(obj.include[1])}_${base_version}`;  //when length != 1 then
 
       // const existsQuery = {[referPath]:{ $exists: true } }
       // const includeQuery = { fields: { "_id":0, "id": 1, [referPath]: 1 } }
       
-      async function mergeTest() {
+      const mergeTest = async() => {
         try {
 
-          // const resultData = await collection.find(existsQuery,includeQuery).toArray()
           const originalData = await collection.find(query).limit(obj.count).toArray()
           const [a,b] = referPath.split(".")
 
           const mergeData = originalData.map(async(elm) => {
             if(a in elm){
-              const id = elm[a][b].split('/')[1]
-              elm[a][b] = await db.collection(referCollection).find({"id":id}).toArray()
+              const referId = elm[a][b].split('/')[1]
+              elm[a][b] = await db.collection(referCollection).find({"id":referId}).toArray()
               return elm
             } else {
               return elm
@@ -435,7 +420,6 @@ module.exports.search = (args) =>
           });
           
           return await Promise.all(mergeData)
-
 
         } catch (err) {
           logger.error('Error with Patient.search: ', err);

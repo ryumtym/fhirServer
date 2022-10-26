@@ -40,7 +40,21 @@ let buildStu3ResultQuery = (args) => {
 
   if(_count) { query.count  = _count }
 
-  if(_sort ) { query.sort   =  { [_sort] : 1 } }
+  if(_sort ) { 
+    const hyphenCheck = /^([-])([a-zA-Z0-9.,$;]+$)/
+    const commaSeparateArr = _sort.split(',');
+
+    const sortQueryBuilder = commaSeparateArr.reduce(function(target, key) {
+      if      (!hyphenCheck.exec(key)) { target[key] = 1 } 
+      else if ( hyphenCheck.exec(key)) { target[key.substr(1)] = -1}
+      return target;
+    }, {})
+
+    console.log(sortQueryBuilder)
+
+    query.sort   =  sortQueryBuilder
+
+  }
 
   if(_include ) { 
     //正規表現: カンマ区切りで分割  eg: Patient:organization -> match1=Patient, match2=organization
@@ -69,6 +83,8 @@ let buildStu3ResultQuery = (args) => {
       "-address.country" ,
       "address.postalCode", 
       "-address.postalCode" ,
+      "general-practitioner" ,
+      "-general-practitioner" ,
       "identifier", 
       "-identifier",  
       "name", 
@@ -91,9 +107,9 @@ let buildStu3ResultQuery = (args) => {
     const validValues = _elements.split(',').filter((elm) => _elementsSearchableValues.includes(elm) && elm !== undefined);
     
     //1文字目がハイフンでないならvisibleElm 1文字目がハイフンならhiddenElm
-    const hyphenCheck = /^([-])([a-zA-Z0-9.,$;]+$)/
-    const visibleElm  = validValues.filter(value => !hyphenCheck.exec(value) );
-    const hiddenElm   = validValues.filter(value =>  hyphenCheck.exec(value) );
+    const hasHyphen = /^([-])([a-zA-Z0-9.,$;]+$)/
+    const visibleElm  = validValues.filter(value => !hasHyphen.exec(value) );
+    const hiddenElm   = validValues.filter(value =>  hasHyphen.exec(value) );
 
     //もし配列両方に値が入ってたら or もしvisibleElm配列にのみ値が入ってたら  -> visibleElmのみでクエリをつくる
     //もしhiddenElmにのみ値が入っていたなら -> ハイフンを取り除いてhiddenElmのみでクエリをつくる
@@ -348,11 +364,11 @@ let buildStu3SearchQuery = (args) => {
 
 const patient4_0_0_ReferenceTypeParams = {
   "organization":{
-    "path":"managingOrganization.reference",
+    "path":"managingOrganization",
     "type":"object"
   },
   "general-practitioner":{
-    "path":"generalPractitioner.reference",
+    "path":"generalPractitioner",
     "type": "array"
   },
   "link":{
@@ -384,51 +400,99 @@ module.exports.search = (args) =>
       include : resParams.include
     }
 
-    console.log(obj)
-    console.log(query)  
+    // console.log(obj)
+    // console.log(query)  
 
     // Grab an instance of our DB and collection
     let db = globals.get(CLIENT_DB);
     let collection = db.collection(`${COLLECTION.PATIENT}_${base_version}`);
     let Patient = getPatient(base_version);
 
-    if(obj.include){
-      
+    if(obj.include){ //外部コレクションと結合する場合
+       // const existsQuery = {[referPath]:{ $exists: true } }
+      // const includeQuery = { fields: { "_id":0, "id": 1, [referPath]: 1 } }
+      const nestPath = "reference"
       const referPath = patient4_0_0_ReferenceTypeParams[obj.include[0]]?.path
+      const referType = patient4_0_0_ReferenceTypeParams[obj.include[0]]?.type
 
       const referCollection = obj.include.length == 1 ?  
-        `${capitalizeInitial(obj.include[0])}_${base_version}` : //when length  = 1 then
-        `${capitalizeInitial(obj.include[1])}_${base_version}`;  //when length != 1 then
-
-      // const existsQuery = {[referPath]:{ $exists: true } }
-      // const includeQuery = { fields: { "_id":0, "id": 1, [referPath]: 1 } }
+        `${capitalizeInitial(obj.include[0])}_${base_version}` : //when true then
+        `${capitalizeInitial(obj.include[1])}_${base_version}`;  //when false then
       
-      const mergeTest = async() => {
+      const dataMerging = async() => {
         try {
+          const originalDatas = await collection.find(query).limit(obj.count).toArray()
 
-          const originalData = await collection.find(query).limit(obj.count).toArray()
-          const [a,b] = referPath.split(".")
-
-          const mergeData = originalData.map(async(elm) => {
-            if(a in elm){
-              const referId = elm[a][b].split('/')[1]
-              elm[a][b] = await db.collection(referCollection).find({"id":referId}).toArray()
-              return elm
-            } else {
-              return elm
+          const referenceArr = originalDatas.map(datas => {
+            
+            if(referPath in datas && referType == "object"){
+              return datas[referPath][nestPath]
             }
-          });
-          
-          return await Promise.all(mergeData)
+  
+            if(referPath in datas && referType == "array"){
+              datas[referPath].map(function(elm){
+                datas = elm[nestPath]
+              })
+              return datas
+            }
 
+          }).filter(Boolean)
+          
+          // const deduplicateArr =  [...new Set(referenceArr)]
+          const queryBuilder = { 
+            $or: 
+              referenceArr.map(elm =>{
+                const referId = elm.split('/')[1]
+                return {"id":referId}
+              })  
+          }
+
+          try {
+            const referenceDatas = await db.collection(referCollection).find( queryBuilder ).toArray()
+            return [...originalDatas, ...referenceDatas]
+          } catch(err){
+            return ` Only ${Object.keys(patient4_0_0_ReferenceTypeParams)} can be used in _include`
+          }
+  
         } catch (err) {
           logger.error('Error with Patient.search: ', err);
           return reject(err);
         }
+          
+          // const mergeDatas = originalDatas.map(async(datas) => {
+          //   if(referPath in datas && referType == "object") {
+          //       const referId = datas[referPath][nestPath].split('/')[1]
+          //       datas[referPath][nestPath] = await db.collection(referCollection).find({"id":referId}).toArray()
+          //       return datas
+          //   }
+
+          //   if(referPath in datas && referType == "array") {
+          //     const insertMultipleDatas = datas[referPath].map(async(elm) => {
+          //         const referId = elm[nestPath].split('/')[1] // eg: Organization/fhirid => return ["fhirid"]
+          //         const referDatas = await db.collection(referCollection).find({"id":referId}).toArray()
+
+          //         return referDatas.length == 0 ? 
+          //           elm : //DBからデータを取得できないならそのまま
+          //           elm[nestPath] = referDatas //取得できていたら中身書き換え
+          //     })
+          //     datas[referPath] = await Promise.all(insertMultipleDatas)
+          //     return datas
+          //   }
+
+          //   if( !(referPath in datas) ) { 
+          //     return datas
+          //   }
+          // });
+          
+          // return await Promise.all(mergeDatas)
+
+        // } catch (err) {
+        //   logger.error('Error with Patient.search: ', err);
+        //   return reject(err);
+        // }
+
      }
-
-    resolve(mergeTest())
-
+      resolve(dataMerging())
     } else {
       // Query our collection for this patient
       //https://stackoverflow.com/questions/32855644/mongodb-not-returning-specific-fields

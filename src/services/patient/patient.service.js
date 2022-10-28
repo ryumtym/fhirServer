@@ -59,7 +59,9 @@ let buildStu3ResultQuery = (args) => {
   if(_include ) { 
     //正規表現: カンマ区切りで分割  eg: Patient:organization -> match1=Patient, match2=organization
     const reg = /\w+[^:]+/g  ///\w+\s*(?:(?:;(?:\s*\w+\s*)?)+)?/
-    query.include = _include.match(reg).slice(1)
+    const commaSplitter = _include.split(',')
+    const arr = commaSplitter.map(elm =>{ return elm.match(reg).slice(1) })
+    query.include = arr
   }
   
   if(_elements){
@@ -400,7 +402,7 @@ module.exports.search = (args) =>
       include : resParams.include
     }
 
-    // console.log(obj)
+    console.log(obj)
     // console.log(query)  
 
     // Grab an instance of our DB and collection
@@ -408,91 +410,66 @@ module.exports.search = (args) =>
     let collection = db.collection(`${COLLECTION.PATIENT}_${base_version}`);
     let Patient = getPatient(base_version);
 
+    // https://devsakaso.com/javascript-flat-flatmap-methods/
+    // https://qiita.com/shuichi0712/items/cf966ad8bae9e610ea32
+    // https://qiita.com/Yametaro/items/17f5a0434afa9b88c3b1
+    // https://maku77.github.io/js/array/concat.html
+    // https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Global_Objects/Set
     if(obj.include){ //外部コレクションと結合する場合
-       // const existsQuery = {[referPath]:{ $exists: true } }
-      // const includeQuery = { fields: { "_id":0, "id": 1, [referPath]: 1 } }
-      const nestPath = "reference"
-      const referPath = patient4_0_0_ReferenceTypeParams[obj.include[0]]?.path
-      const referType = patient4_0_0_ReferenceTypeParams[obj.include[0]]?.type
-
-      const referCollection = obj.include.length == 1 ?  
-        `${capitalizeInitial(obj.include[0])}_${base_version}` : //when true then
-        `${capitalizeInitial(obj.include[1])}_${base_version}`;  //when false then
-      
+      const nestPath = "reference" 
       const dataMerging = async() => {
-        try {
-          const originalDatas = await collection.find(query).limit(obj.count).toArray()
 
-          const referenceArr = originalDatas.map(datas => {
-            
-            if(referPath in datas && referType == "object"){
-              return datas[referPath][nestPath]
+        //1. queryを基にデータをとってくる
+        const originalDatas = await collection.find(query).limit(obj.count).toArray()
+
+        //2. obj.include値を基にオブジェクトを作成
+        const searchTarget =  obj.include.map(elm => {
+          const isSingle =  elm.length == 1 //配列の数が1かどうか
+          //三項演算子 => [if文 ? whenIsTrue : whenIsFalse]　https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Operators/Conditional_Operator
+          const targetKey = isSingle ? patient4_0_0_ReferenceTypeParams[elm]?.path : patient4_0_0_ReferenceTypeParams[elm[0]]?.path
+          const targetType =  isSingle ? patient4_0_0_ReferenceTypeParams[elm]?.type : patient4_0_0_ReferenceTypeParams[elm[0]]?.type
+          const targetCollection =  isSingle ? capitalizeInitial(elm[0]) : capitalizeInitial(elm[1])
+          return  {targetKey, targetType, targetCollection}
+        })
+
+        //3. originalDatas内のkeyに、_includeSearchTarget値があった場合、originalDatasのvalueを配列に格納
+        const filterOrgDatasBasedOnSearchTarget = searchTarget.map(valueOf => {
+          const formatDatas =  originalDatas.map(elm =>{
+
+            if(valueOf.targetKey in elm && valueOf.targetType == "object" && valueOf.targetCollection == elm[valueOf.targetKey][nestPath].split('/')[0] ){ 
+              return  elm[valueOf.targetKey][nestPath]
             }
-  
-            if(referPath in datas && referType == "array"){
-              datas[referPath].map(function(elm){
-                datas = elm[nestPath]
+
+            if(valueOf.targetKey in elm && valueOf.targetType == "array" ){ 
+              const datas = elm[valueOf.targetKey].map(function(v){
+                if(valueOf.targetCollection == v[nestPath].split('/')[0]){
+                  return v[nestPath]
+                }
               })
               return datas
             }
 
-          }).filter(Boolean)
-          
-          // const deduplicateArr =  [...new Set(referenceArr)]
-          const queryBuilder = { 
-            $or: 
-              referenceArr.map(elm =>{
-                const referId = elm.split('/')[1]
-                return {"id":referId}
-              })  
-          }
+          }).flat().filter(Boolean)
+          // .filter(Boolean).flat()
+          return formatDatas
+        })
 
-          try {
-            const referenceDatas = await db.collection(referCollection).find( queryBuilder ).toArray()
-            return [...originalDatas, ...referenceDatas]
-          } catch(err){
-            return ` Only ${Object.keys(patient4_0_0_ReferenceTypeParams)} can be used in _include`
-          }
-  
-        } catch (err) {
-          logger.error('Error with Patient.search: ', err);
-          return reject(err);
-        }
-          
-          // const mergeDatas = originalDatas.map(async(datas) => {
-          //   if(referPath in datas && referType == "object") {
-          //       const referId = datas[referPath][nestPath].split('/')[1]
-          //       datas[referPath][nestPath] = await db.collection(referCollection).find({"id":referId}).toArray()
-          //       return datas
-          //   }
+        //3. hasTargetKeyArrから重複を削除、ネストを取り除いた配列を新たに作成
+        const toDedupeAndFlatten = [...new Set(filterOrgDatasBasedOnSearchTarget.flat())];
 
-          //   if(referPath in datas && referType == "array") {
-          //     const insertMultipleDatas = datas[referPath].map(async(elm) => {
-          //         const referId = elm[nestPath].split('/')[1] // eg: Organization/fhirid => return ["fhirid"]
-          //         const referDatas = await db.collection(referCollection).find({"id":referId}).toArray()
+        //4. toDeduplicateAndFlattenの値を基にDB検索
+        const referenceDatas = toDedupeAndFlatten.map( async(elm) =>{
+          const [collection,id] = elm.split('/')
+          return await db.collection( `${capitalizeInitial(collection)}_${base_version}` ).find( { id:id } ).toArray()
+        })
 
-          //         return referDatas.length == 0 ? 
-          //           elm : //DBからデータを取得できないならそのまま
-          //           elm[nestPath] = referDatas //取得できていたら中身書き換え
-          //     })
-          //     datas[referPath] = await Promise.all(insertMultipleDatas)
-          //     return datas
-          //   }
-
-          //   if( !(referPath in datas) ) { 
-          //     return datas
-          //   }
-          // });
-          
-          // return await Promise.all(mergeDatas)
-
-        // } catch (err) {
-        //   logger.error('Error with Patient.search: ', err);
-        //   return reject(err);
-        // }
-
-     }
+        //5. originalDatasとreferenceDatasを結合
+        const result =  await Promise.all(referenceDatas)
+        return [...originalDatas, ...[].concat(...result.map(item => item))]
+      }
+      
       resolve(dataMerging())
+
     } else {
       // Query our collection for this patient
       //https://stackoverflow.com/questions/32855644/mongodb-not-returning-specific-fields

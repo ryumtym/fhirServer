@@ -4,7 +4,8 @@
  * @param {string} sentence 大文字にしたい文字列
 */
 const capitalizeInitial = (sentence) => {
-    return sentence && sentence[0].toUpperCase() + sentence.slice(1);
+	if (typeof sentence !== 'string' || !sentence) return sentence;
+	return sentence.charAt(0).toUpperCase() + sentence.slice(1).toLowerCase();
 }
 
 module.exports = {

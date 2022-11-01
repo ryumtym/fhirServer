@@ -36,7 +36,7 @@ let getMeta = (base_version) => {
 
 let buildStu3ResultQuery = (args) => {
   let query = {};
-  let { _count, _sort, _elements, _include } = args;
+  let { _count, _sort, _elements, _include, _revinclude } = args;
 
   if(_count) { query.count  = _count }
 
@@ -51,7 +51,6 @@ let buildStu3ResultQuery = (args) => {
     }, {})
 
     console.log(sortQueryBuilder)
-
     query.sort   =  sortQueryBuilder
 
   }
@@ -62,6 +61,13 @@ let buildStu3ResultQuery = (args) => {
     const commaSplitter = _include.split(',')
     const arr = commaSplitter.map(elm =>{ return elm.match(reg).slice(1) })
     query.include = arr
+  }
+
+  if(_revinclude ) { 
+    const reg = /\w+[^:]+/g  ///\w+\s*(?:(?:;(?:\s*\w+\s*)?)+)?/
+    const commaSplitter = _revinclude.split(',')
+    const arr = commaSplitter.map(elm =>{ return elm.match(reg) })
+    query.revinclude = arr
   }
   
   if(_elements){
@@ -399,7 +405,8 @@ module.exports.search = (args) =>
       count   : resParams.count || defaultRecordCounts,
       sort    : resParams.sort,
       element : resParams.element,
-      include : resParams.include
+      include : resParams.include,
+      revinclude : resParams.revinclude
     }
 
     console.log(obj)
@@ -409,83 +416,108 @@ module.exports.search = (args) =>
     let db = globals.get(CLIENT_DB);
     let collection = db.collection(`${COLLECTION.PATIENT}_${base_version}`);
     let Patient = getPatient(base_version);
+    
 
     // https://devsakaso.com/javascript-flat-flatmap-methods/
     // https://qiita.com/shuichi0712/items/cf966ad8bae9e610ea32
     // https://qiita.com/Yametaro/items/17f5a0434afa9b88c3b1
     // https://maku77.github.io/js/array/concat.html
     // https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Global_Objects/Set
-    if(obj.include){ //外部コレクションと結合する場合
-      const nestPath = "reference" 
-      const dataMerging = async() => {
+    // https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Operators/Conditional_Operator
 
-        //1. queryを基にデータをとってくる
-        const originalDatas = await collection.find(query).limit(obj.count).toArray()
-
-        //2. obj.include値を基にオブジェクトを作成
-        const searchTarget =  obj.include.map(elm => {
-          const isSingle =  elm.length == 1 //配列の数が1かどうか
-          //三項演算子 => [if文 ? whenIsTrue : whenIsFalse]　https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Operators/Conditional_Operator
-          const targetKey = isSingle ? patient4_0_0_ReferenceTypeParams[elm]?.path : patient4_0_0_ReferenceTypeParams[elm[0]]?.path
-          const targetType =  isSingle ? patient4_0_0_ReferenceTypeParams[elm]?.type : patient4_0_0_ReferenceTypeParams[elm[0]]?.type
-          const targetCollection =  isSingle ? capitalizeInitial(elm[0]) : capitalizeInitial(elm[1])
-          return  {targetKey, targetType, targetCollection}
-        })
-
-        //3. originalDatas内のkeyに、_includeSearchTarget値があった場合、originalDatasのvalueを配列に格納
-        const filterOrgDatasBasedOnSearchTarget = searchTarget.map(valueOf => {
-          const formatDatas =  originalDatas.map(elm =>{
-
-            if(valueOf.targetKey in elm && valueOf.targetType == "object" && valueOf.targetCollection == elm[valueOf.targetKey][nestPath].split('/')[0] ){ 
-              return  elm[valueOf.targetKey][nestPath]
-            }
-
-            if(valueOf.targetKey in elm && valueOf.targetType == "array" ){ 
-              const datas = elm[valueOf.targetKey].map(function(v){
-                if(valueOf.targetCollection == v[nestPath].split('/')[0]){
-                  return v[nestPath]
-                }
-              })
-              return datas
-            }
-
-          }).flat().filter(Boolean)
-          // .filter(Boolean).flat()
-          return formatDatas
-        })
-
-        //3. hasTargetKeyArrから重複を削除、ネストを取り除いた配列を新たに作成
-        const toDedupeAndFlatten = [...new Set(filterOrgDatasBasedOnSearchTarget.flat())];
-
-        //4. toDeduplicateAndFlattenの値を基にDB検索
-        const referenceDatas = toDedupeAndFlatten.map( async(elm) =>{
-          const [collection,id] = elm.split('/')
-          return await db.collection( `${capitalizeInitial(collection)}_${base_version}` ).find( { id:id } ).toArray()
-        })
-
-        //5. originalDatasとreferenceDatasを結合
-        const result =  await Promise.all(referenceDatas)
-        return [...originalDatas, ...[].concat(...result.map(item => item))]
-      }
-      
-      resolve(dataMerging())
-
-    } else {
-      // Query our collection for this patient
-      //https://stackoverflow.com/questions/32855644/mongodb-not-returning-specific-fields
-      collection.find(query,obj.element).limit(obj.count).sort(obj.sort).collation().toArray().then(
-        (patients) => {
-          patients.forEach(function (element, i, returnArray) {
-            returnArray[i] = new Patient(element);
-          });
-          resolve(patients);
-        },
-        err => {
-          logger.error('Error with Patient.search: ', err);
-          return reject(err);
-        }
-      )
+    const getOrginalDatas = async() =>{
+      // return await collection.find(query,obj.element).limit(obj.count).sort(obj.sort).collation().toArray()
+      const orgDatas = await collection.find(query,obj.element).limit(obj.count).sort(obj.sort).collation().toArray()
+      return orgDatas.map(elm => new Patient(elm))
     }
+
+    const _includeDatas = async(datas) => {
+      const nestPath = "reference" 
+      //1. queryを基にデータをとってくる
+      const originalDatas = datas
+      
+      //2. obj.include値を基にオブジェクトを作成　
+      const searchKeys =  obj.include.map(elm => {
+        const isSingle =  elm.length == 1 //配列の数が1かどうか
+        const targetKey = isSingle ? patient4_0_0_ReferenceTypeParams[elm]?.path : patient4_0_0_ReferenceTypeParams[elm[0]]?.path
+        const targetType =  isSingle ? patient4_0_0_ReferenceTypeParams[elm]?.type : patient4_0_0_ReferenceTypeParams[elm[0]]?.type
+        const targetCollection =  isSingle ? capitalizeInitial(elm[0]) : capitalizeInitial(elm[1])
+        return  {targetKey, targetType, targetCollection}
+      })
+
+      //3. originalDatas内のkeyに、_includeSearchTarget値があった場合、originalDatasのvalueを配列に格納
+      const containsDatasBasedOnsearchKeys = originalDatas.map(elm =>{
+        const getTargetValues = searchKeys.map(valueOf => {
+          if(valueOf.targetKey in elm ){ return elm[valueOf.targetKey] }
+        }).flat().filter(Boolean)
+        return getTargetValues
+      })
+      
+      // 4. hasTargetKeyArrから重複を削除、ネストを取り除いた配列を新たに作成
+      const toDedupeAndFlatten = [...new Set(containsDatasBasedOnsearchKeys.flat().map(elm => elm[nestPath]))];
+
+      //5. toDeduplicateAndFlattenの値を基にDB検索
+      const retrieveDatas = toDedupeAndFlatten.map(async(elm) =>{
+        const [collection,id] = elm.split('/')
+        const schema = resolveSchema(base_version, capitalizeInitial(collection))
+        const datas = await db.collection( `${capitalizeInitial(collection)}_${base_version}` ).find( { id:id } ).toArray()
+        return datas.map(elm => new schema(elm))
+      })
+
+      //6. 結合
+      const result =  await Promise.all(retrieveDatas)
+      return [].concat(...result.map(item => item))
+    }  
+
+    const _revincludeDatas = async(datas) =>{
+      const nestPath = "reference" 
+      const originalDatas = datas
+
+      //2. obj.include値を基にオブジェクトを作成
+      const searchKeys =  obj.revinclude.map(elm => {
+        //三項演算子 => [if文 ? whenIsTrue : whenIsFalse]　https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Operators/Conditional_Operator
+        const targetCollection =  elm[0]
+        const targetKey = elm[1]
+        return  {targetCollection,targetKey}
+      })
+      
+      //3. originalDatasからidを取り出して加工する
+      const shapingOrgDatas = originalDatas.map(elm => { return `Patient/${elm.id}` }) 
+      
+      //4. クエリを作成してmongoDBで検索
+      const retriveDatas = searchKeys.map(async(valueOf) => {
+
+        const collection = `${valueOf.targetCollection}_${base_version}`
+        const path = `${valueOf.targetKey}.${nestPath}`
+        const mongoQuery = { $or: shapingOrgDatas.map(id => { return { [path] : id } }) }
+
+        return await db.collection(collection).find( mongoQuery ).toArray()
+      })
+
+      //4. 結合
+      const result = await Promise.all(retriveDatas)
+      return [].concat(...result.map(item => item))
+    }
+
+    const search = async() => {
+      const arr = []
+      const orgDatas = await getOrginalDatas()
+
+      arr.push( orgDatas )
+
+      if(obj.include){
+        arr.push(await _includeDatas(orgDatas)) 
+      }
+
+      if(obj.revinclude){
+        arr.push(await _revincludeDatas(orgDatas))
+      }
+
+      return arr.flat()
+    }
+
+    resolve(search())
+
   });
 
 module.exports.searchById = (args) =>

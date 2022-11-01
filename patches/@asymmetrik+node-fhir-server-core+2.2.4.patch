@@ -1,8 +1,8 @@
 diff --git a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/resource.parameters.js b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/resource.parameters.js
-index 8886a1b..2da552f 100644
+index 8886a1b..41544ad 100644
 --- a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/resource.parameters.js
 +++ b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/resource.parameters.js
-@@ -59,5 +59,33 @@ module.exports = {
+@@ -59,5 +59,40 @@ module.exports = {
      xpath: 'Resource.meta.tag',
      definition: 'http://hl7.org/fhir/SearchParameter/Resource-tag',
      description: 'Tags applied to this resource'
@@ -30,6 +30,13 @@ index 8886a1b..2da552f 100644
 +    description: ''
 +  },
 +  _include: {
++    type: 'string',
++    fhirtype: 'string',
++    xpath: '',
++    definition: '',
++    description: 'Other resources to include in the search results that search matches point to'
++  },
++  _revinclude: {
 +    type: 'string',
 +    fhirtype: 'string',
 +    xpath: '',

@@ -1,5 +1,41 @@
 # https://gist.github.com/ryumtym/6b00d180652144473bf978428ef7883a
 
+**Search result params**
+| Summary     | modif :heavy_check_mark:| example                                             |
+| :------     | :--                     | :--                                                 |
+| _count      |                         | ?_count=20                                          |
+| _include    |                         | ?_include=Patient:general-practitioner:Practitioner |
+| _revinclude |                         | _revinclude=Observation:subject                     |
+| _elements   |                         | ?_elements=-identifier,name                         |
+
+**[Common search params](https://hl7.org/fhir/search.html#all)**
+| Summary     | modif :heavy_check_mark:| example             |
+| :------     | :--                     | :--                 |
+| _id         |                         | ?_id=12345          |
+| _lastUpdated| `eq` `gt` `lt`          | ?_lastUpdated=2021  |
+
+
+**[Patient search params](http://hl7.org/fhir/patient.html#search)**
+| Summary     | modif :heavy_check_mark:| example                                   |
+| :------     | :--                     | :--                                       |
+| active      |`:not`                   | ?active:not=true                          |
+| address     | `:contains` `:exact`    | ?address:contains=ja                      |
+| address.City| `:contains` `:exact`    | ?address-city=PleasantVille               |
+| birthDate   | `eq` `gt` `lt`          | ?birthdate=gt2001&birthdate=lt2022-06-12  |
+| deathDate   | `eq` `gt` `lt`          | ?death-date=2015-01-01T00:00:00+00:00     |
+| deceased    | `:not`                  | ?deceased:not=true                        |
+| gender      | `:not`                  | ?gender:not=unknown                       |
+| general_practitioner|                 |                                           |
+| identifier  | `:text`                 | ?identifier=example.com|example           |
+| link        |                         | ?link=pat2                                |
+| name        | `:contains` `:exact`    | ?name:exact=thebausffs                    |
+| name.family | `:contains` `:exact`    | ?family=chiang                            |
+| name.given  | `:contains` `:exact`    | ?given=ted                                |
+| organization|                         | ?organization=1                           |
+| telecom     |                         | ?telecom=phone\|070-1234-5678             |
+
+
+
 ## 進捗
 
 [https://www.hl7.org/fhir/search.html#string]

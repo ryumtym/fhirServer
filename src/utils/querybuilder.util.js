@@ -1,6 +1,5 @@
 const moment = require('moment-timezone');
 
-
 /**
  * @name stringQueryBuilder
  * @description builds mongo default query for string inputs, no modifiers
@@ -10,15 +9,15 @@ const moment = require('moment-timezone');
  */
  let stringQueryBuilder = function (target,modif) {
   let t2 = target.replace(/[\\(\\)\\-\\_\\+\\=\\/\\.]/g, '\\$&');
-  
-  const modifSwitch = { //引数2の値で判定してクエリ返す 
-    ''        : function(v){ return { $regex: "^" + v, $options: "i" } }  , //default 前方一致
-    'contains': function(v){ return { $regex: v, $options: "i" } }  , //部分一致 
-    'exact'   : function(v){ return { $regex: "^" + v + "$" } } //完全一致 
+
+  const modifSwitch = { //引数2の値で判定してクエリ返す
+    '': function(v){ return { $regex: '^' + v, $options: 'i' }}, //default 前方一致
+    'contains': function(v){ return { $regex: v, $options: 'i' }}, //部分一致
+    'exact': function(v){ return { $regex: '^' + v + '$' }} //完全一致
     // return { $not: { $regex:"^" + t2 + "$"} }; //除外検索
   }[modif](t2);
-  
-  return modifSwitch
+
+  return modifSwitch;
 };
 
 
@@ -27,50 +26,50 @@ const moment = require('moment-timezone');
  * @name dateQB
  * @description _lastUpdated has any dateformat pattern. most likely yyyy, yyyymm, yyyymmdd, ltyyyy, gtyyyymm, etc... so frustrated!
  * @param {string} target what we are querying for
- * @param {string} path JSON path 
+ * @param {string} path JSON path
  * @return a mongo regex query
  */
-let dateQB = function (target,path) {
-  const reg = /^(\D{2})?(\d{4})(-\d{2})?(-\d{2})?(?:(T\d{2}:\d{2})(:\d{2})?)?(Z|(\+|-|\s)(\d{2}):(\d{2}))?$/
-  const match = target.match(reg)//正規表現でグループ化　https://regex101.com/ testString -> 1963-05-07T00:00+00:00
+let dateQB = function (target, path) {
+  const reg = /^(\D{2})?(\d{4})(-\d{2})?(-\d{2})?(?:(T\d{2}:\d{2})(:\d{2})?)?(Z|(\+|-|\s)(\d{2}):(\d{2}))?$/;
+  const match = target.match(reg); // 正規表現でグループ化 https://regex101.com/ testString -> 1963-05-07T00:00+00:00
 
   const hasEmpty = /\s/; //line30
-  const hasComma = ',' //line23 targetが複数の場合
+  const hasComma = ','; //line23 targetが複数の場合
 
-  const arr = {}
-  let dateArr = []
-  let prefix = "eq"
-  let str = ""
-  
-  if(target.match(hasComma)){ //gt&ltの組み合わせ用に配列に格納
-    dateArr = target.split(hasComma)
-  }else{
-    dateArr = [target]
+  const arr = {};
+  let dateArr = [];
+  let prefix = 'eq';
+  let str = '';
+
+  if (target.match(hasComma)){ //gt&ltの組み合わせ用に配列に格納
+    dateArr = target.split(hasComma);
+  } else {
+    dateArr = [target];
   }
 
-  if(dateArr.length === 1){ 
-    const removeModif = target.replace(/(^.[a-zA-Z])/,"") //gt20220303 -> 20220303
-    const formatSec = removeModif.replace(hasEmpty, '+') //2022-08-01T04:33:41 00:00 -> 2022-08-01T04:33:41+00:00
-    
-    if(match[1] && match[1] !== prefix){
-      prefix = `$${match[1]}`
-      return  {
+  if (dateArr.length === 1){
+    const removeModif = target.replace(/(^.[a-zA-Z])/, ''); // gt20220303 -> 20220303
+    const formatSec = removeModif.replace(hasEmpty, '+'); // 2022-08-01T04:33:41 00:00 -> 2022-08-01T04:33:41+00:00
+
+    if (match[1] && match[1] !== prefix){
+      prefix = `$${match[1]}`;
+      return {
         [path]: {
           [prefix]: formatSec
         }
-      }
-    } else if( !match[1] || match[1] === prefix) {
-      if(!match[5]){
-        return  {
+      };
+    } else if ( !match[1] || match[1] === prefix) {
+      if (!match[5]){
+        return {
           [path]: {
             // $regex: "^" + removeModif
             $regex: removeModif
           }
-        }
-      } else if(match[9]) {
-        return  {
+        };
+      } else if (match[9]) {
+        return {
           [path]: formatSec
-        }
+        };
       }
     }
   } else {
@@ -777,10 +776,10 @@ let compositeQueryBuilder = function (target, field1, field2) {
       composite.push(temp);
   }
   if (target.includes('$')) {
-    console.log({$and: JSON.stringify(composite)})
+    console.log({$and: JSON.stringify(composite)});
     return { $and: composite };
   } else {
-    console.log({$or: JSON.stringify(composite)})
+    console.log({$or: JSON.stringify(composite)});
     return { $or: composite };
   }
 };

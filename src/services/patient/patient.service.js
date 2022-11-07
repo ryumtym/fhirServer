@@ -12,6 +12,8 @@ const { capitalizeInitial } = require('../../utils/functions.util');
 
 const logger = require('@asymmetrik/node-fhir-server-core').loggers.get();
 
+const anyParams = require('@asymmetrik/node-fhir-server-core').getSearchParameters;
+
 const {
   stringQueryBuilder,
   tokenQueryBuilder,
@@ -22,6 +24,7 @@ const {
   dateQB,
 } = require('../../utils/querybuilder.util');
 const { forEach } = require('../../globals');
+const { link } = require('@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/patient.parameters');
 
 const defaultRecordCounts = 10;
 
@@ -32,7 +35,6 @@ let getPatient = (base_version) => {
 let getMeta = (base_version) => {
   return resolveSchema(base_version, 'Meta');
 };
-
 
 let buildStu3ResultQuery = (args) => {
   let query = {};
@@ -49,10 +51,7 @@ let buildStu3ResultQuery = (args) => {
       else if ( hyphenCheck.exec(key)) { target[key.substr(1)] = -1}
       return target;
     }, {})
-
-    console.log(sortQueryBuilder)
     query.sort   =  sortQueryBuilder
-
   }
 
   if(_include ) { 
@@ -126,11 +125,8 @@ let buildStu3ResultQuery = (args) => {
     } else if (!visibleElm.length  && hiddenElm.length ){  
       query.element   =  { fields: hiddenElm.reduce((obj, elm) => ({...obj, [elm.substr(1)]: 0}), {"_id":1}) }
     }
-
   }
-  
   return query
-
 };
 
 let buildStu3SearchQuery = (args) => {
@@ -370,20 +366,6 @@ let buildStu3SearchQuery = (args) => {
   return query;
 };
 
-const patient4_0_0_ReferenceTypeParams = {
-  "organization":{
-    "path":"managingOrganization",
-    "type":"object"
-  },
-  "general-practitioner":{
-    "path":"generalPractitioner",
-    "type": "array"
-  },
-  "link":{
-    "path":"link.other",
-    "type": "array"
-  }
-};
 
 /**
  * @param {*} args
@@ -394,6 +376,7 @@ module.exports.search = (args) =>
   new Promise((resolve, reject) => {
     logger.info('Patient >>> search');
     let { base_version } = args;
+
     let query = {};
     query = buildStu3SearchQuery(args);
 
@@ -401,7 +384,7 @@ module.exports.search = (args) =>
     let resParams = {}
     resParams = buildStu3ResultQuery(args)
 
-    const obj = {
+    const resultParams = {
       count   : resParams.count || defaultRecordCounts,
       sort    : resParams.sort,
       element : resParams.element,
@@ -409,7 +392,8 @@ module.exports.search = (args) =>
       revinclude : resParams.revinclude
     }
 
-    console.log(obj)
+    // console.log(args)
+    console.log(resultParams)
     // console.log(query)  
 
     // Grab an instance of our DB and collection
@@ -425,42 +409,64 @@ module.exports.search = (args) =>
     // https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Global_Objects/Set
     // https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Operators/Conditional_Operator
 
-    const getOrginalDatas = async() =>{
+    //データを取得する もしクエリストリングに_includeか_revincludeがあった際これを基にinclude,revinclude関数を動かす
+    const fetchOrginalDatas = async() =>{
       // return await collection.find(query,obj.element).limit(obj.count).sort(obj.sort).collation().toArray()
-      const orgDatas = await collection.find(query,obj.element).limit(obj.count).sort(obj.sort).collation().toArray()
-      return orgDatas.map(elm => new Patient(elm))
+      const orgDatas = await collection.find(query,resultParams.element).limit(resultParams.count).sort(resultParams.sort).collation().toArray()
+      return orgDatas.map(item => new Patient(item)) //schema process
     }
 
-    const _includeDatas = async(datas) => {
+    // fetchOrginalDatasで取得したデータを基に、別データを取得 
+    const fetch_includeDatas = async(datas) => {
       const nestPath = "reference" 
       //1. queryを基にデータをとってくる
       const originalDatas = datas
       
       //2. obj.include値を基にオブジェクトを作成　
-      const searchKeys =  obj.include.map(elm => {
-        const isSingle =  elm.length == 1 //配列の数が1かどうか
-        const targetKey = isSingle ? patient4_0_0_ReferenceTypeParams[elm]?.path : patient4_0_0_ReferenceTypeParams[elm[0]]?.path
-        const targetType =  isSingle ? patient4_0_0_ReferenceTypeParams[elm]?.type : patient4_0_0_ReferenceTypeParams[elm[0]]?.type
-        const targetCollection =  isSingle ? capitalizeInitial(elm[0]) : capitalizeInitial(elm[1])
-        return  {targetKey, targetType, targetCollection}
-      })
+      const refSrchParams = anyParams.getSearchParameters("Patient",base_version)
+                            .filter(valueOf => valueOf.fhirtype == nestPath)
+                            .reduce((obj, data) => ({...obj, [data.name]: data}), {});
 
-      //3. originalDatas内のkeyに、_includeSearchTarget値があった場合、originalDatasのvalueを配列に格納
-      const containsDatasBasedOnsearchKeys = originalDatas.map(elm =>{
-        const getTargetValues = searchKeys.map(valueOf => {
-          if(valueOf.targetKey in elm ){ return elm[valueOf.targetKey] }
-        }).flat().filter(Boolean)
-        return getTargetValues
+      const referenceTargets =  resultParams.include.map(queryKey => {
+        const isSingle =  queryKey.length == 1 //配列の数が1かどうか
+        // const pathBuilder = (elm) => elm?.xpath?.split(".").slice(1).join('.');
+        const pathBuilder = (elm) => String(elm?.xpath?.match(/\w+[^.]+/g).slice(1).join('.')); // same process as above 
+
+        // refSrchParams[queryKey]?.xpath.split(".")[1]
+        return isSingle ? { 
+                            'targetPath': pathBuilder(refSrchParams[queryKey]) ,    
+                            'targetCollection': capitalizeInitial(queryKey[0]) 
+                          } : 
+                          { 
+                            'targetPath': pathBuilder(refSrchParams[queryKey[0]]) ,
+                            'targetCollection': capitalizeInitial(queryKey[1]) 
+                          }
       })
       
+      //3. originalDatasとreferenceTargetsを照らし合わせて_includeクエリに当てはまる値を取得
+      // https://stackoverflow.com/questions/48668232/recursive-function-and-map-for-accessing-elements-in-nested-array
+      const getTargetValues = referenceTargets.map(valueOf => {
+        const find = (node, pathArr, index = 0) => {
+          const path = pathArr[index];
+          const entry = node.map(e => e[path]).flat().filter(Boolean);
+          if (!entry) { return null; }
+          ++index;
+          return index < pathArr.length ? find(entry, pathArr, index) : entry.filter(elm =>  elm[nestPath].split("/")[0] == valueOf.targetCollection ) ;
+        }
+        return find(originalDatas, valueOf.targetPath.split("."))
+      })
+
+      const containsDatasBasedOnsearchKeys= getTargetValues.flat().map(elm => typeof(elm) == "object"? elm[nestPath] : elm )
+              
       // 4. hasTargetKeyArrから重複を削除、ネストを取り除いた配列を新たに作成
-      const toDedupeAndFlatten = [...new Set(containsDatasBasedOnsearchKeys.flat().map(elm => elm[nestPath]))];
+      // const toDedupeAndFlatten = [...new Set(containsDatasBasedOnsearchKeys.flat().map(item => item[nestPath]))];
+      const toDedupeAndFlatten = [...new Set(containsDatasBasedOnsearchKeys.flat().map(item => item))];
 
       //5. toDeduplicateAndFlattenの値を基にDB検索
       const retrieveDatas = toDedupeAndFlatten.map(async(elm) =>{
-        const [collection,id] = elm.split('/')
-        const schema = resolveSchema(base_version, capitalizeInitial(collection))
-        const datas = await db.collection( `${capitalizeInitial(collection)}_${base_version}` ).find( { id:id } ).toArray()
+        const [refcollection,refid] = elm.split('/')
+        const schema = resolveSchema(base_version, capitalizeInitial(refcollection))
+        const datas = await db.collection( `${capitalizeInitial(refcollection)}_${base_version}` ).find( { id:refid } ).toArray()
         return datas.map(elm => new schema(elm))
       })
 
@@ -469,20 +475,21 @@ module.exports.search = (args) =>
       return [].concat(...result.map(item => item))
     }  
 
-    const _revincludeDatas = async(datas) =>{
+   // fetchOrginalDatasで取得したデータを基に、別データを取得
+    const fetch_revincludeDatas = async(datas) =>{
       const nestPath = "reference" 
       const originalDatas = datas
 
-      //2. obj.include値を基にオブジェクトを作成
-      const searchKeys =  obj.revinclude.map(elm => {
+      //2. obj.revinclude値を基にオブジェクトを作成
+      const searchKeys =  resultParams.revinclude.map(item => {
         //三項演算子 => [if文 ? whenIsTrue : whenIsFalse]　https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Operators/Conditional_Operator
-        const targetCollection =  elm[0]
-        const targetKey = elm[1]
+        const targetCollection =  item[0]
+        const targetKey = item[1]
         return  {targetCollection,targetKey}
       })
       
       //3. originalDatasからidを取り出して加工する
-      const shapingOrgDatas = originalDatas.map(elm => { return `Patient/${elm.id}` }) 
+      const shapingOrgDatas = originalDatas.map(valueOf => { return `Patient/${valueOf.id}` }) 
       
       //4. クエリを作成してmongoDBで検索
       const retriveDatas = searchKeys.map(async(valueOf) => {
@@ -499,21 +506,21 @@ module.exports.search = (args) =>
       return [].concat(...result.map(item => item))
     }
 
+    // データを返す
     const search = async() => {
       const arr = []
-      const orgDatas = await getOrginalDatas()
+      try{
+        const orgDatas = await fetchOrginalDatas()
 
-      arr.push( orgDatas )
-
-      if(obj.include){
-        arr.push(await _includeDatas(orgDatas)) 
+        arr.push(orgDatas)
+        if(resultParams.include){ arr.push(await fetch_includeDatas(orgDatas)) }
+        if(resultParams.revinclude){ arr.push(await fetch_revincludeDatas(orgDatas)) }
+  
+        return arr.flat() 
+      } catch(err){
+        reject(new Error(err));
       }
 
-      if(obj.revinclude){
-        arr.push(await _revincludeDatas(orgDatas))
-      }
-
-      return arr.flat()
     }
 
     resolve(search())

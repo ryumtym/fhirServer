@@ -446,14 +446,14 @@ module.exports.search = (args) =>
       //3. originalDatasとreferenceTargetsを照らし合わせて_includeクエリに当てはまる値を取得
       // https://stackoverflow.com/questions/48668232/recursive-function-and-map-for-accessing-elements-in-nested-array
       const getTargetValues = referenceTargets.map(valueOf => {
-        const find = (node, pathArr, index = 0) => {
+        const findNestedData = (node, pathArr, index = 0) => {
           const path = pathArr[index];
           const entry = node.map(e => e[path]).flat().filter(Boolean);
           if (!entry) { return null; }
           ++index;
-          return index < pathArr.length ? find(entry, pathArr, index) : entry.filter(elm =>  elm[nestPath].split("/")[0] == valueOf.targetCollection ) ;
+          return index < pathArr.length ? findNestedData(entry, pathArr, index) : entry.filter(elm => elm[nestPath].split("/")[0] == valueOf.targetCollection );
         }
-        return find(originalDatas, valueOf.targetPath.split("."))
+        return findNestedData(originalDatas, valueOf.targetPath.split("."))
       })
 
       const containsDatasBasedOnsearchKeys= getTargetValues.flat().map(elm => typeof(elm) == "object"? elm[nestPath] : elm )

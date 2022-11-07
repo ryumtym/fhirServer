@@ -1,3 +1,29 @@
+diff --git a/node_modules/@asymmetrik/node-fhir-server-core/dist/index.js b/node_modules/@asymmetrik/node-fhir-server-core/dist/index.js
+index c7f6242..9213101 100644
+--- a/node_modules/@asymmetrik/node-fhir-server-core/dist/index.js
++++ b/node_modules/@asymmetrik/node-fhir-server-core/dist/index.js
+@@ -9,6 +9,9 @@ const winston = require('./server/winston.js');
+ const Server = require('./server/server');
+ 
+ const constants = require('./constants');
++
++const getSearchParameters = require('./server/utils/params.utils');
++
+ /**
+  * @name exports
+  * @description Export the server and some convenience methods for building a FHIR server
+@@ -21,6 +24,11 @@ module.exports = {
+    */
+   constants,
+ 
++    /**
++   * @description Get SearchParams
++   */
++  getSearchParameters,
++
+   /**
+    * @description Export Server Error class for people to throw from services
+    * This will in turn generate an operation outcome
 diff --git a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/resource.parameters.js b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/resource.parameters.js
 index 8886a1b..41544ad 100644
 --- a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/resource.parameters.js
@@ -89,6 +115,18 @@ index ff294d0..cf6696e 100644
    if (version !== '1_0_2') {
      allArguments = Object.assign(allArguments, getParameters(version, 'domainresource'));
    } // Convert these into an array
+diff --git a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/params.utils.test.js b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/params.utils.test.js
+index db87e28..4baf8fb 100644
+--- a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/params.utils.test.js
++++ b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/params.utils.test.js
+@@ -38,6 +38,7 @@ describe('Param Utils Tests', () => {
+       expect(r4Params).toHaveLength(32);
+       expect(Array.isArray(r401Params)).toBeTruthy();
+       expect(r401Params).toHaveLength(32);
++      console.log(r4Params)
+     });
+     test('should throw an error if given an invalid parameter name', () => {
+       expect(() => {
 diff --git a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/sanitize.utils.js b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/sanitize.utils.js
 index 3e6f85c..4a0bd9d 100644
 --- a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/sanitize.utils.js

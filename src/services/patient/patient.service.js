@@ -12,7 +12,8 @@ const { capitalizeInitial } = require('../../utils/functions.util');
 
 const logger = require('@asymmetrik/node-fhir-server-core').loggers.get();
 
-const anyParams = require('@asymmetrik/node-fhir-server-core').getSearchParameters;
+const fhirParams = require('@asymmetrik/node-fhir-server-core').getSearchParameters;
+const r4PatientSrchParams = fhirParams.getSearchParameters("Patient","4_0_0");
 
 const {
   stringQueryBuilder,
@@ -23,8 +24,17 @@ const {
   dateQueryBuilder,
   dateQB,
 } = require('../../utils/querybuilder.util');
+
+const {
+  _elementsQueryBuilder,
+  _includeParamsBuilder,
+  _revincludeParamsBuilder,
+  _sortQueryBuilder
+} = require('../../utils/searchResultParams.util');
+
 const { forEach } = require('../../globals');
 const { link } = require('@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/patient.parameters');
+
 
 const defaultRecordCounts = 10;
 
@@ -36,44 +46,25 @@ let getMeta = (base_version) => {
   return resolveSchema(base_version, 'Meta');
 };
 
-let buildStu3ResultQuery = (args) => {
+let buildR4ResultParams = (args) => {
   let query = {};
   let { _count, _sort, _elements, _include, _revinclude } = args;
 
   if(_count) { query.count  = _count }
 
   if(_sort ) { 
-    const hyphenCheck = /^([-])([a-zA-Z0-9.,$;]+$)/
-    const commaSeparateArr = _sort.split(',');
-
-    const sortQueryBuilder = commaSeparateArr.reduce(function(target, key) {
-      if      (!hyphenCheck.exec(key)) { target[key] = 1 } 
-      else if ( hyphenCheck.exec(key)) { target[key.substr(1)] = -1}
-      return target;
-    }, {})
-    query.sort   =  sortQueryBuilder
+    query.sort = _sortQueryBuilder(_sort,r4PatientSrchParams);
   }
 
   if(_include ) { 
-    //正規表現: カンマ区切りで分割  eg: Patient:organization -> match1=Patient, match2=organization
-    const reg = /\w+[^:]+/g  ///\w+\s*(?:(?:;(?:\s*\w+\s*)?)+)?/
-    const commaSplitter = _include.split(',')
-    const arr = commaSplitter.map(elm =>{ return elm.match(reg).slice(1) })
-    query.include = arr
+    query.include = _includeParamsBuilder(_include);
   }
 
   if(_revinclude ) { 
-    const reg = /\w+[^:]+/g  ///\w+\s*(?:(?:;(?:\s*\w+\s*)?)+)?/
-    const commaSplitter = _revinclude.split(',')
-    const arr = commaSplitter.map(elm =>{ return elm.match(reg) })
-    query.revinclude = arr
+    query.revinclude = _revincludeParamsBuilder(_revinclude);
   }
   
   if(_elements){
-    //https://www.hl7.org/fhir/search.html#elements
-    //https://www.mongodb.com/community/forums/t/projection-does-not-allow-exclusion-inclusion-together/31756
-    //https://chaika.hatenablog.com/entry/2019/05/07/083000
-
     // _elements検索ができる値を格納
     const _elementsSearchableValues = [ 
       "address", 
@@ -109,22 +100,8 @@ let buildStu3ResultQuery = (args) => {
       "link", 
       "-link" 
     ]
+    query.elements = _elementsQueryBuilder(_elements, _elementsSearchableValues);
 
-    //_elementsの値をカンマ区切りでsplitし、_elementsSearchableValuesと照らし合わせて使用可能な値のみ返す(undefinedも除外)
-    const validValues = _elements.split(',').filter((elm) => _elementsSearchableValues.includes(elm) && elm !== undefined);
-    
-    //1文字目がハイフンでないならvisibleElm 1文字目がハイフンならhiddenElm
-    const hasHyphen = /^([-])([a-zA-Z0-9.,$;]+$)/
-    const visibleElm  = validValues.filter(value => !hasHyphen.exec(value) );
-    const hiddenElm   = validValues.filter(value =>  hasHyphen.exec(value) );
-
-    //もし配列両方に値が入ってたら or もしvisibleElm配列にのみ値が入ってたら  -> visibleElmのみでクエリをつくる
-    //もしhiddenElmにのみ値が入っていたなら -> ハイフンを取り除いてhiddenElmのみでクエリをつくる
-    if(visibleElm.length && hiddenElm.length  || visibleElm.length  && !hiddenElm.length){ 
-      query.element   =  { fields: visibleElm.reduce((obj, elm) => ({...obj, [elm]: 1}), {"_id":1}) } 
-    } else if (!visibleElm.length  && hiddenElm.length ){  
-      query.element   =  { fields: hiddenElm.reduce((obj, elm) => ({...obj, [elm.substr(1)]: 0}), {"_id":1}) }
-    }
   }
   return query
 };
@@ -382,18 +359,18 @@ module.exports.search = (args) =>
 
     // 20220921
     let resParams = {}
-    resParams = buildStu3ResultQuery(args)
+    resParams = buildR4ResultParams(args)
 
-    const resultParams = {
-      count   : resParams.count || defaultRecordCounts,
+    const resultOptions = {
+      count   : resParams.count || defaultRecordCounts, // defaultRecordCounts = 10
       sort    : resParams.sort,
       element : resParams.element,
       include : resParams.include,
       revinclude : resParams.revinclude
     }
 
-    // console.log(args)
-    console.log(resultParams)
+    console.log(Object.keys(args))
+    console.log(resultOptions)
     // console.log(query)  
 
     // Grab an instance of our DB and collection
@@ -408,80 +385,79 @@ module.exports.search = (args) =>
     // https://maku77.github.io/js/array/concat.html
     // https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Global_Objects/Set
     // https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Operators/Conditional_Operator
+    // https://stackoverflow.com/questions/48668232/recursive-function-and-map-for-accessing-elements-in-nested-array
 
     //データを取得する もしクエリストリングに_includeか_revincludeがあった際これを基にinclude,revinclude関数を動かす
-    const fetchOrginalDatas = async() =>{
+    const fetchOrginalDatas = async() => {
       // return await collection.find(query,obj.element).limit(obj.count).sort(obj.sort).collation().toArray()
-      const orgDatas = await collection.find(query,resultParams.element).limit(resultParams.count).sort(resultParams.sort).collation().toArray()
+      const orgDatas = await collection.find(query,resultOptions.element).limit(resultOptions.count).collation().toArray()
       return orgDatas.map(item => new Patient(item)) //schema process
+    }
+
+    const fetchSortedDatas = async() => {
+      const matchQuery =  { $match: {...resultOptions.sort.existChecker, ...query } }
+      const orgDatas = await collection.aggregate([resultOptions.sort.specifySortOrder, matchQuery ], resultOptions.sort.caseInsensitive).limit(resultOptions.count).toArray();   
+      return orgDatas.map(item => new Patient(item)) //schema process 
     }
 
     // fetchOrginalDatasで取得したデータを基に、別データを取得 
     const fetch_includeDatas = async(datas) => {
-      const nestPath = "reference" 
       //1. queryを基にデータをとってくる
       const originalDatas = datas
-      
-      //2. obj.include値を基にオブジェクトを作成　
-      const refSrchParams = anyParams.getSearchParameters("Patient",base_version)
+      const nestPath = "reference"
+
+      //2. fhirのPatientパラメーターからtype="reference"のオブジェクトを抽出してデータ構造を {name: {...}, name: {...}, ...}に整形して吐き出し
+      const refTypeParams = r4PatientSrchParams
                             .filter(valueOf => valueOf.fhirtype == nestPath)
                             .reduce((obj, data) => ({...obj, [data.name]: data}), {});
 
-      const referenceTargets =  resultParams.include.map(queryKey => {
+      //3. クエリストリングの_include値とrefTypeParamsを基に検索用のオブジェクトを作成　
+      const queryStrsObj =  resultOptions.include.map(queryKey => {
         const isSingle =  queryKey.length == 1 //配列の数が1かどうか
-        // const pathBuilder = (elm) => elm?.xpath?.split(".").slice(1).join('.');
-        const pathBuilder = (elm) => String(elm?.xpath?.match(/\w+[^.]+/g).slice(1).join('.')); // same process as above 
+        const pathBuilder = (dataName) => dataName?.xpath?.split(".").slice(1).join('.'); // Eg: Patient.link.other => link.other
+        // const pathBuilder = (dataName) => String(dataName?.xpath?.match(/\w+[^.]+/g).slice(1).join('.')); // same process as above 
 
-        // refSrchParams[queryKey]?.xpath.split(".")[1]
-        return isSingle ? { 
-                            'targetPath': pathBuilder(refSrchParams[queryKey]) ,    
-                            'targetCollection': capitalizeInitial(queryKey[0]) 
-                          } : 
-                          { 
-                            'targetPath': pathBuilder(refSrchParams[queryKey[0]]) ,
-                            'targetCollection': capitalizeInitial(queryKey[1]) 
-                          }
+        return isSingle ? 
+          { 'targetPath': pathBuilder(refTypeParams[queryKey]) , 'targetCollection': capitalizeInitial(queryKey[0]) } : 
+          { 'targetPath': pathBuilder(refTypeParams[queryKey[0]]), 'targetCollection': capitalizeInitial(queryKey[1]) }
       })
       
-      //3. originalDatasとreferenceTargetsを照らし合わせて_includeクエリに当てはまる値を取得
-      // https://stackoverflow.com/questions/48668232/recursive-function-and-map-for-accessing-elements-in-nested-array
-      const getTargetValues = referenceTargets.map(valueOf => {
+      // 4. originalDatasからqueryStrsObjに当てはまるものを取得 
+      const datasOfFitTheQueryStrs = queryStrsObj.map(valueOf => {
         const findNestedData = (node, pathArr, index = 0) => {
           const path = pathArr[index];
           const entry = node.map(e => e[path]).flat().filter(Boolean);
           if (!entry) { return null; }
           ++index;
-          return index < pathArr.length ? findNestedData(entry, pathArr, index) : entry.filter(elm => elm[nestPath].split("/")[0] == valueOf.targetCollection );
+          return index < pathArr.length ? findNestedData(entry, pathArr, index) : entry.filter(item => item[nestPath].split("/")[0] == valueOf.targetCollection );
         }
         return findNestedData(originalDatas, valueOf.targetPath.split("."))
-      })
+      }).flat().map(item => typeof(item) == "object"? item[nestPath] : item )
 
-      const containsDatasBasedOnsearchKeys= getTargetValues.flat().map(elm => typeof(elm) == "object"? elm[nestPath] : elm )
-              
-      // 4. hasTargetKeyArrから重複を削除、ネストを取り除いた配列を新たに作成
-      // const toDedupeAndFlatten = [...new Set(containsDatasBasedOnsearchKeys.flat().map(item => item[nestPath]))];
-      const toDedupeAndFlatten = [...new Set(containsDatasBasedOnsearchKeys.flat().map(item => item))];
+  
+      // 5. datasOfFitTheQueryStrsを整形(重複を削除、ネストを取り除く)
+      const toDedupeAndFlattenDatas = [...new Set(datasOfFitTheQueryStrs.flat().map(item => item))];
 
-      //5. toDeduplicateAndFlattenの値を基にDB検索
-      const retrieveDatas = toDedupeAndFlatten.map(async(elm) =>{
-        const [refcollection,refid] = elm.split('/')
+      // 6. toDeduplicateAndFlattenの値を基にDB検索/取得
+      const fetchDatasFromMongo = toDedupeAndFlattenDatas.map(async(item) =>{
+        const [refcollection,refid] = item.split('/')
         const schema = resolveSchema(base_version, capitalizeInitial(refcollection))
         const datas = await db.collection( `${capitalizeInitial(refcollection)}_${base_version}` ).find( { id:refid } ).toArray()
-        return datas.map(elm => new schema(elm))
+        return datas.map(item => new schema(item))
       })
 
-      //6. 結合
-      const result =  await Promise.all(retrieveDatas)
+      // 7. 値返却
+      const result =  await Promise.all(fetchDatasFromMongo)
       return [].concat(...result.map(item => item))
     }  
 
-   // fetchOrginalDatasで取得したデータを基に、別データを取得
-    const fetch_revincludeDatas = async(datas) =>{
+    // fetchOrginalDatasで取得したデータを基に、別データを取得
+    const fetch_revincludeDatas = async(datas) => {
       const nestPath = "reference" 
       const originalDatas = datas
 
       //2. obj.revinclude値を基にオブジェクトを作成
-      const searchKeys =  resultParams.revinclude.map(item => {
+      const searchKeys =  resultOptions.revinclude.map(item => {
         //三項演算子 => [if文 ? whenIsTrue : whenIsFalse]　https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Operators/Conditional_Operator
         const targetCollection =  item[0]
         const targetKey = item[1]
@@ -492,7 +468,7 @@ module.exports.search = (args) =>
       const shapingOrgDatas = originalDatas.map(valueOf => { return `Patient/${valueOf.id}` }) 
       
       //4. クエリを作成してmongoDBで検索
-      const retriveDatas = searchKeys.map(async(valueOf) => {
+      const fetchDatasFromMongo = searchKeys.map(async(valueOf) => {
 
         const collection = `${valueOf.targetCollection}_${base_version}`
         const path = `${valueOf.targetKey}.${nestPath}`
@@ -502,7 +478,7 @@ module.exports.search = (args) =>
       })
 
       //4. 結合
-      const result = await Promise.all(retriveDatas)
+      const result = await Promise.all(fetchDatasFromMongo)
       return [].concat(...result.map(item => item))
     }
 
@@ -510,21 +486,17 @@ module.exports.search = (args) =>
     const search = async() => {
       const arr = []
       try{
-        const orgDatas = await fetchOrginalDatas()
+        const orgDatas = resultOptions.sort ? await fetchSortedDatas() : await fetchOrginalDatas()
+        arr.push(orgDatas);
+        if(resultOptions.include)    { arr.push(await fetch_includeDatas(orgDatas))    };
+        if(resultOptions.revinclude) { arr.push(await fetch_revincludeDatas(orgDatas)) };
+        return arr.flat() // Eg: [[item1], [item2], [item3]] => [item1, item2, item3]
 
-        arr.push(orgDatas)
-        if(resultParams.include){ arr.push(await fetch_includeDatas(orgDatas)) }
-        if(resultParams.revinclude){ arr.push(await fetch_revincludeDatas(orgDatas)) }
-  
-        return arr.flat() 
       } catch(err){
         reject(new Error(err));
       }
-
     }
-
-    resolve(search())
-
+    resolve(search());
   });
 
 module.exports.searchById = (args) =>

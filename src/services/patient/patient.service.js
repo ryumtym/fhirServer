@@ -35,7 +35,6 @@ const {
 const { forEach } = require('../../globals');
 const { link } = require('@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/patient.parameters');
 
-
 const defaultRecordCounts = 10;
 
 let getPatient = (base_version) => {
@@ -66,41 +65,7 @@ let buildR4ResultParams = (args) => {
   
   if(_elements){
     // _elements検索ができる値を格納
-    const _elementsSearchableValues = [ 
-      "address", 
-      "-address",  
-      "address.line", 
-      "-address.line" ,
-      "address.city", 
-      "-address.city" ,
-      "address.district", 
-      "-address.district" ,
-      "address.state", 
-      "-address.state" ,
-      "address.country", 
-      "-address.country" ,
-      "address.postalCode", 
-      "-address.postalCode" ,
-      "general-practitioner" ,
-      "-general-practitioner" ,
-      "identifier", 
-      "-identifier",  
-      "name", 
-      "-name", 
-      "name.family", 
-      "-name.family", 
-      "name.give", 
-      "-name.give", 
-      "name.prefix", 
-      "-name.prefix", 
-      "name.suffix", 
-      "-name.suffix", 
-      "telecom", 
-      "-telecom" ,
-      "link", 
-      "-link" 
-    ]
-    query.elements = _elementsQueryBuilder(_elements, _elementsSearchableValues);
+    query.elements = _elementsQueryBuilder(_elements);
 
   }
   return query
@@ -364,7 +329,7 @@ module.exports.search = (args) =>
     const resultOptions = {
       count   : resParams.count || defaultRecordCounts, // defaultRecordCounts = 10
       sort    : resParams.sort,
-      element : resParams.element,
+      elements : resParams.elements,
       include : resParams.include,
       revinclude : resParams.revinclude
     }
@@ -390,7 +355,7 @@ module.exports.search = (args) =>
     //データを取得する もしクエリストリングに_includeか_revincludeがあった際これを基にinclude,revinclude関数を動かす
     const fetchOrginalDatas = async() => {
       // return await collection.find(query,obj.element).limit(obj.count).sort(obj.sort).collation().toArray()
-      const orgDatas = await collection.find(query,resultOptions.element).limit(resultOptions.count).collation().toArray()
+      const orgDatas = await collection.find(query,resultOptions.elements).limit(resultOptions.count).collation().toArray()
       return orgDatas.map(item => new Patient(item)) //schema process
     }
 

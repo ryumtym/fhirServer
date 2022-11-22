@@ -1,8 +1,13 @@
+// _elements,_sortに関してはqueryを作成
+// _include,_revincludeは他のリソースを読み取るためのパラメーターを配列として返却
+// _countはクエリ作成が必要ないためそのまま使用
+
 //https://www.hl7.org/fhir/search.html#elements
 //https://www.mongodb.com/community/forums/t/projection-does-not-allow-exclusion-inclusion-together/31756
 //https://chaika.hatenablog.com/entry/2019/05/07/083000
-const _elementsQueryBuilder = (target, searchableValues) => {
-  const validValues = target.split(',').filter((elm) => searchableValues.includes(elm) && elm !== undefined);
+const _elementsQueryBuilder = (target) => {
+  const validValues = target.split(',').filter((elm) => elm !== undefined);
+
 
   //1文字目がハイフンでないならvisibleElm 1文字目がハイフンならhiddenElm
   const hasHyphen = /^([-])([a-zA-Z0-9.,$;]+$)/
@@ -12,9 +17,9 @@ const _elementsQueryBuilder = (target, searchableValues) => {
   //もし配列両方に値が入ってたら or もしvisibleElm配列にのみ値が入ってたら  -> visibleElmのみでクエリをつくる
   //もしhiddenElmにのみ値が入っていたなら -> ハイフンを取り除いてhiddenElmのみでクエリをつくる
   if(visibleElm.length && hiddenElm.length  || visibleElm.length  && !hiddenElm.length){ 
-    return  { fields: visibleElm.reduce((obj, elm) => ({...obj, [elm]: 1}), {"id":1}) } 
+    return  { fields: visibleElm.reduce((obj, elm) => ({...obj, [elm]: 1}), {"id":1, "meta":1}) } 
   } else if (!visibleElm.length  && hiddenElm.length ){  
-    return  { fields: hiddenElm.reduce((obj, elm) => ({...obj, [elm.substr(1)]: 0}), {"id":1}) }
+    return  { fields: hiddenElm.reduce((obj, elm) => ({...obj, [elm.substr(1)]: 0}), {"id":1, "meta":1}) }
   }
 };
 

@@ -7,13 +7,13 @@ const moment = require('moment-timezone');
  * @param {string} modif modifier contains->部分一致, exact->完全一致, それ以外->前方一致
  * @return a mongo regex query
  */
- let stringQueryBuilder = function (target,modif) {
+ let stringQueryBuilder = function (target, modif) {
   let t2 = target.replace(/[\\(\\)\\-\\_\\+\\=\\/\\.]/g, '\\$&');
 
   const modifSwitch = { //引数2の値で判定してクエリ返す
-    '': function(v){ return { $regex: '^' + v, $options: 'i' }}, //default 前方一致
-    'contains': function(v){ return { $regex: v, $options: 'i' }}, //部分一致
-    'exact': function(v){ return { $regex: '^' + v + '$' }} //完全一致
+    '': function(v){ return { $regex: '^' + v, $options: 'i' }; }, //default 前方一致
+    'contains': function(v){ return { $regex: v, $options: 'i' }; }, //部分一致
+    'exact': function(v){ return { $regex: '^' + v + '$' }; } //完全一致
     // return { $not: { $regex:"^" + t2 + "$"} }; //除外検索
   }[modif](t2);
 
@@ -74,25 +74,23 @@ let dateQB = function (target, path) {
     }
   } else {
     dateArr.forEach(elm => {
-      matchs = elm.match(reg)
-      prefix = matchs[1]
+      matchs = elm.match(reg);
+      prefix = matchs[1];
       for (let i2 = 2; i2 < 7; i2++) {
           if (matchs[`${i2}`]) {
               str = str + matchs[`${i2}`];
           }
       }
-      
+
       const moment_dt = moment.utc(str);
       // convert to format that mongo uses to store
       const datetime_utc = moment_dt.utc().format('YYYY-MM-DDTHH:mm:ssZ');
-      str = ""
-      Object.assign(arr, {[`$${prefix}`] : datetime_utc})
-    })
+      str = '';
+      Object.assign(arr, {[`$${prefix}`]: datetime_utc});
+    });
   }
-  return {[path]:arr}
+  return {[path]: arr};
 };
-
-
 
 
 
@@ -106,17 +104,17 @@ let dateQB = function (target, path) {
 let addressQueryBuilder = function (target) {
   // Tokenize the input as mush as possible
   let totalSplit = target.split(/[\s,]+/);
-  const addressArray = ['address.line','address.city','address.district','address.state','address.postalCode', 'address.country']
-  const queryArray = []
+  const addressArray = ['address.line', 'address.city', 'address.district', 'address.state', 'address.postalCode', 'address.country'];
+  const queryArray = [];
 
   for (let i in totalSplit) {
-    for(let i2=0; i2<addressArray.length; i2++){
-      queryArray.push({[addressArray[i2]]: { $regex: "^" + totalSplit[i], $options: "i" } })
+    for (let i2 = 0; i2 < addressArray.length; i2++){
+      queryArray.push({[addressArray[i2]]: { $regex: '^' + totalSplit[i], $options: 'i' } });
     }
   }
-  
+
   // return {"$or" : queryArray}
-  return [queryArray]
+  return [queryArray];
 };
 
 /**
@@ -127,27 +125,27 @@ let addressQueryBuilder = function (target) {
  * @param {string} modif https://www.hl7.org/fhir/search.html#string
  * @return {array} ors
  */
-let nameQueryBuilder = function (target , modif) { 
+let nameQueryBuilder = function (target, modif) {
   let split = target.split(/[\s.,]+/);
 
-  const nameArray = ['name.text','name.family','name.given','name.suffix','name.prefix']
-  const queryArray = []
+  const nameArray = ['name.text', 'name.family', 'name.given', 'name.suffix', 'name.prefix'];
+  const queryArray = [];
 
   for (let i in split) {
 
     const modifSwitch = { //修飾子で判定してクエリ返す
-        ''        : function(v){ return { $regex: "^" + v, $options: "i" } }  , //default 前方一致
-        'contains': function(v){ return { $regex: v, $options: "i" } }  , //部分一致 
-        'exact'   : function(v){ return { $regex: "^" + v + "$" } } ,//完全一致 ,
+        '': function(v){ return { $regex: '^' + v, $options: 'i' }; }, //default 前方一致
+        'contains': function(v){ return { $regex: v, $options: 'i' }; }, //部分一致
+        'exact': function(v){ return { $regex: '^' + v + '$' }; }, //完全一致 ,
       }[modif](split[i]);
 
-    for(let i2=0; i2<nameArray.length; i2++){
-      queryArray.push({[nameArray[i2]]: modifSwitch })
+    for (let i2 = 0; i2 < nameArray.length; i2++){
+      queryArray.push({[nameArray[i2]]: modifSwitch });
     }
 
   }
 
-return [queryArray]
+return [queryArray];
 
 };
 
@@ -174,26 +172,26 @@ let tokenQueryBuilder = function (target, type, field, required, dataType, modif
   let system = '';
   let value = '';
 
-  if(dataType === "boolean"){
-    const v = JSON.parse(target.toLowerCase())
-    if(modifier === 'not' ){ //need change
-      queryBuilder[field] = {$ne: v } //https://stackoverflow.com/questions/263965/how-can-i-convert-a-string-to-boolean-in-javascript
+  if (dataType === 'boolean'){
+    const v = JSON.parse(target.toLowerCase());
+    if (modifier === 'not' ){ //need change
+      queryBuilder[field] = {$ne: v }; //https://stackoverflow.com/questions/263965/how-can-i-convert-a-string-to-boolean-in-javascript
     } else {
-      queryBuilder[field] = {$eq: v }
+      queryBuilder[field] = {$eq: v };
     }
-  } else if(dataType === "string") {
-    if(modifier === 'not' ){ //need change
-      queryBuilder[field] = { $ne: target }
+  } else if (dataType === 'string') {
+    if (modifier === 'not' ){ //need change
+      queryBuilder[field] = { $ne: target };
     } else {
-      queryBuilder[field] = { $eq: target }
+      queryBuilder[field] = { $eq: target };
     }
   } else { //code(implicitType)
-    if(modifier === 'text'){
+    if (modifier === 'text'){
       queryBuilder[`${field}`] = target;
     } else {
       if (target.includes('|')) {
         [system, value] = target.split('|');
-    
+
         if (required) {
           system = required;
         }
@@ -202,7 +200,7 @@ let tokenQueryBuilder = function (target, type, field, required, dataType, modif
       }
     }
 
-  
+
     if (system) {
       queryBuilder[`${field}.system`] = system;
     }
@@ -395,21 +393,21 @@ let dateQueryBuilder = function (date, type, path) { //fork元のコードがか
   let toRet = [];
   let pArr = []; //will have other possibilities such as just year, just year and month, etc
   let prefix = '$eq';
-  
-  let dateArr = []
-  const arr = {}
-  const regex2 = ','
-  console.log(match)
-  if(date.match(regex2)){
-    dateArr = date.split(',')
-  }else{
-    dateArr = [date]
+
+  let dateArr = [];
+  const arr = {};
+  const regex2 = ',';
+  console.log(match);
+  if (date.match(regex2)){
+    dateArr = date.split(',');
+  } else {
+    dateArr = [date];
   }
   // console.log(match)
 
-  if(dateArr.length === 1){
+  if (dateArr.length === 1){
     if (match && match.length >= 1) {
-      
+
         if (match[1]) {
           // replace prefix with mongo specific comparators
           prefix = '$' + match[1].replace('ge', 'gte').replace('le', 'lte');
@@ -426,7 +424,7 @@ let dateQueryBuilder = function (date, type, path) { //fork元のコードがか
               }
             }
             //below we have to check if the search gave more information than what is actually stored
-            return{"$regex": "^" + str}
+            return {'$regex': '^' + str};
           } else {
             for (let i = 2; i < 10; i++) {
                 if (match[`${i}`]) {
@@ -436,7 +434,7 @@ let dateQueryBuilder = function (date, type, path) { //fork元のコードがか
             const moment_dt = moment.utc(str);
             // convert to format that mongo uses to store
             const datetime_utc = moment_dt.utc().format('YYYY-MM-DDTHH:mm:ssZ');
-            Object.assign(arr, {[`${prefix}`] : datetime_utc})
+            Object.assign(arr, {[`${prefix}`]: datetime_utc});
         }
         }
 
@@ -624,19 +622,19 @@ let dateQueryBuilder = function (date, type, path) { //fork元のコードがか
             }
 
             return {
-              [path]:{
+              [path]: {
                 $regex: '^' + '(?:' + str + ')|(?:' + match[0].replace('+', '\\+') + ')|(?:' + tempFill,
-                $options: "i"
+                $options: 'i'
               }
             };
 
-          } else{
-            if(match[5]){
+          } else {
+            if (match[5]){
               for (let i = 2; i < 7; i++) {
                 str = str + match[i];
               }
               if (match[9]) {
-                str = str + "+" +  match[9] + ":" + match[10]
+                str = str + '+' + match[9] + ':' + match[10];
               }
             } else {
               for (let i = 2; i < 5; i++) {
@@ -646,16 +644,16 @@ let dateQueryBuilder = function (date, type, path) { //fork元のコードがか
                 }
               }
             }
-            console.log(str)
+            console.log(str);
 
-            return {[path]: {[`$${match[1]}`]: str}}
+            return {[path]: {[`$${match[1]}`]: str}};
           }
         }
       }
   } else {
     dateArr.forEach(elm => {
-      matchs = elm.match(regex)
-      prefix = matchs[1]
+      matchs = elm.match(regex);
+      prefix = matchs[1];
       for (let i2 = 2; i2 < 10; i2++) {
           if (matchs[`${i2}`]) {
               str = str + matchs[`${i2}`];
@@ -664,13 +662,13 @@ let dateQueryBuilder = function (date, type, path) { //fork元のコードがか
       const moment_dt = moment.utc(str);
       // convert to format that mongo uses to store
       const datetime_utc = moment_dt.utc().format('YYYY-MM-DDTHH:mm:ssZ');
-      str = ""
-      Object.assign(arr, {[`$${prefix}`] : datetime_utc})
-    })
+      str = '';
+      Object.assign(arr, {[`$${prefix}`]: datetime_utc});
+    });
   }
 
   // return {[path]:arr}
-    return arr
+    return arr;
 };
 /**
  * @name compositeQueryBuilder
@@ -686,10 +684,10 @@ let compositeQueryBuilder = function (target, field1, field2) {
   let [target1, target2] = target.split(/[$,]/);
   let [path1, type1] = field1.split('|');
   let [path2, type2] = field2.split('|');
-  console.log([target])
+  console.log([target]);
   // console.log(field1)
   // console.log(field2)
-  console.log([path1, type1])
+  console.log([path1, type1]);
   // console.log([path2, type2])
 
   // Call the right queryBuilder based on type

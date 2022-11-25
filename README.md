@@ -46,7 +46,6 @@
   - update時にreq.bodyに``id``が無い際のエラー処理追加(要コード変更)
   - update時に指定されたオブジェクト全体を上書きするよう変更　
 
-
 _**fhirJsonData for**_ [mongoplayground](https://mongoplayground.net/)
 ```bson
 [

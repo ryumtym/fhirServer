@@ -38,10 +38,10 @@ let buildRelease4SearchQuery = (args) => {
   let query = {};
   let ors = [];
 
-  if(address){
+  if (address){
     let queryBuilder = addressQueryBuilder(address);
     for (let i in queryBuilder) {
-      ors.push({"$or" : queryBuilder[i] })
+      ors.push({'$or': queryBuilder[i] });
     }
   }
 
@@ -73,7 +73,7 @@ let buildRelease4SearchQuery = (args) => {
    let collection = db.collection(`${COLLECTION.ORGANIZATION}_${base_version}`);
    let Organization = getOrganization(base_version);
 
-   console.log(query)
+   console.log(query);
 
    collection.find(query).toArray().then(
      (organizations) => {
@@ -86,7 +86,7 @@ let buildRelease4SearchQuery = (args) => {
        logger.error('Error with Organization.search: ', err);
        return reject(err);
      }
-   )
+   );
  });
 
  module.exports.create = (args, { req }) =>
@@ -107,7 +107,7 @@ let buildRelease4SearchQuery = (args) => {
 
     // If no resource ID was provided, generate one.
     let id = getUuid(organization);
-    console.log(id)
+    console.log(id);
     // Create the resource's metadata
     let Meta = getMeta(base_version);
     organization.meta = new Meta({

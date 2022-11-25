@@ -13,7 +13,7 @@ const { capitalizeInitial } = require('../../utils/functions.util');
 const logger = require('@asymmetrik/node-fhir-server-core').loggers.get();
 
 const fhirParams = require('@asymmetrik/node-fhir-server-core').getSearchParameters;
-const r4PatientSrchParams = fhirParams.getSearchParameters("Patient","4_0_0");
+const r4PatientSrchParams = fhirParams.getSearchParameters('Patient', '4_0_0');
 
 const {
   stringQueryBuilder,
@@ -27,8 +27,8 @@ const {
 
 const { r4ResultParamsBuilder,} = require('../../utils/searchResultParams.util');
 
-const { forEach } = require('../../globals');
-const { link } = require('@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/patient.parameters');
+// const { forEach } = require('../../globals');
+// const { link } = require('@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/patient.parameters');
 
 
 let getPatient = (base_version) => {
@@ -63,8 +63,8 @@ let buildStu3SearchQuery = (args) => {
   let birthdate = args['birthdate'];
   let death_date = args['death-date'];
 
-  let deceased = args['deceased']
-  let deceasedNot = args['deceased:not']
+  let deceased = args['deceased'];
+  let deceasedNot = args['deceased:not'];
 
   let family = args['family'];
   let familyContains = args['family:contains'];
@@ -73,7 +73,6 @@ let buildStu3SearchQuery = (args) => {
   let gender = args['gender'];
   let genderNot = args['gender:not'];
 
-    
   let general_practitioner = args['general-practitioner'];
 
   let given = args['given'];
@@ -85,15 +84,15 @@ let buildStu3SearchQuery = (args) => {
   let identifierText = args['identifier:text'];
 
 
-  let link = args['link']
+  let link = args['link'];
 
   let name = args['name'];
   let nameContains = args['name:contains'];
   let nameExact = args['name:exact'];
 
-  let organization = args['organization']
+  let organization = args['organization'];
 
-  let telecom = args['telecom']
+  let telecom = args['telecom'];
 
   let query = {};
   let ors = [];
@@ -103,61 +102,60 @@ let buildStu3SearchQuery = (args) => {
     query.id = _id;
   }
 
-  if(_lastUpdated){
-    query =  dateQB(_lastUpdated,'meta.lastUpdated')
+  if (_lastUpdated){
+    query = dateQB(_lastUpdated, 'meta.lastUpdated');
     // console.log(query)
   }
 
-  if (active) { 
-    console.log(active)
-    let queryBuilder = tokenQueryBuilder(active,"","active","","boolean","");
+  if (active) {
+    let queryBuilder = tokenQueryBuilder(active, '', 'active', '', 'boolean', '');
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
     }
     // query.active =  {$eq: JSON.parse(active.toLowerCase())};
   } else if (activeNot){
-    let queryBuilder = tokenQueryBuilder(activeNot,"","active","","boolean","not");
+    let queryBuilder = tokenQueryBuilder(activeNot, '', 'active', '', 'boolean', 'not');
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
     }
     // query.active =  {$ne: JSON.parse(activeNot.toLowerCase())}
-  } else if(activeMissing){ //https://www.mongodb.com/community/forums/t/query-performance-with-null-vs-exists/108103/3
-    query = { active: null }
+  } else if (activeMissing){ //https://www.mongodb.com/community/forums/t/query-performance-with-null-vs-exists/108103/3
+    query = { active: null };
   }
 
-  if(address){
+  if (address){
     let queryBuilder = addressQueryBuilder(address);
     for (let i in queryBuilder) {
       // query[i] = queryBuilder[i];
-      ors.push({"$or" : queryBuilder[i] })
+      ors.push({'$or': queryBuilder[i] });
     }
   }
 
 
 
   if (addressCity) {
-    query['address.city'] = stringQueryBuilder(addressCity, "");
+    query['address.city'] = stringQueryBuilder(addressCity, '');
   } else if (addressCityContains){
-    query['address.city'] = stringQueryBuilder(addressCityContains, "contains");
+    query['address.city'] = stringQueryBuilder(addressCityContains, 'contains');
   } else if (addressCityExact){
-    query['address.city'] = stringQueryBuilder(addressCityExact, "exact");
+    query['address.city'] = stringQueryBuilder(addressCityExact, 'exact');
   }
 
   if (birthdate) {
-    query.birthDate = dateQueryBuilder(birthdate, 'date', 'birthDate')
+    query.birthDate = dateQueryBuilder(birthdate, 'date', 'birthDate');
   }
 
   if (death_date) {
-    query= dateQB(death_date, 'deceasedDateTime');
+    query = dateQB(death_date, 'deceasedDateTime');
   }
 
-  if (deceased) { 
-    let queryBuilder = tokenQueryBuilder(deceased,"","deceased","","boolean","");
+  if (deceased) {
+    let queryBuilder = tokenQueryBuilder(deceased, '', 'deceased', '', 'boolean', '');
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
     }
   } else if (deceasedNot){
-    let queryBuilder = tokenQueryBuilder(deceasedNot,"","deceased","","boolean","not");
+    let queryBuilder = tokenQueryBuilder(deceasedNot, '', 'deceased', '', 'boolean', 'not');
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
     }
@@ -165,21 +163,21 @@ let buildStu3SearchQuery = (args) => {
 
 
   if (family) {
-    query['name.family'] = stringQueryBuilder(family, "");
+    query['name.family'] = stringQueryBuilder(family, '');
   } else if (familyContains) {
-    query['name.family'] = stringQueryBuilder(familyContains, "contains");
-  } else if(familyExact){
-    query['name.family'] = stringQueryBuilder(familyExact, "exact");
-  } 
+    query['name.family'] = stringQueryBuilder(familyContains, 'contains');
+  } else if (familyExact){
+    query['name.family'] = stringQueryBuilder(familyExact, 'exact');
+  }
 
   if (gender) {
-    let queryBuilder = tokenQueryBuilder(gender, '', 'gender',"","string","");
+    let queryBuilder = tokenQueryBuilder(gender, '', 'gender', '', 'string', '');
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
     }
     // query.gender = { $regex: "^" + gender, $options: "i"}
   } else if (genderNot){
-    let queryBuilder = tokenQueryBuilder(genderNot, '', 'gender',"","string","not");
+    let queryBuilder = tokenQueryBuilder(genderNot, '', 'gender', '', 'string', 'not');
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
     }
@@ -188,7 +186,7 @@ let buildStu3SearchQuery = (args) => {
 
   if (general_practitioner) {
     let queryBuilder = referenceQueryBuilder(general_practitioner, 'generalPractitioner.reference');
-    console.log(queryBuilder)
+    console.log(queryBuilder);
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
     }
@@ -196,34 +194,34 @@ let buildStu3SearchQuery = (args) => {
 
 
   if (given) {
-    query['name.given'] = stringQueryBuilder(given, "");
+    query['name.given'] = stringQueryBuilder(given, '');
   } else if (givenContains) {
-    query['name.given'] = stringQueryBuilder(givenContains, "contains");
-  } else if(givenExact){
-    query['name.given'] = stringQueryBuilder(givenExact, "exact");
-  } 
+    query['name.given'] = stringQueryBuilder(givenContains, 'contains');
+  } else if (givenExact){
+    query['name.given'] = stringQueryBuilder(givenExact, 'exact');
+  }
 
   if (identifier) {
     let queryBuilder = tokenQueryBuilder(identifier, 'value', 'identifier', '');
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
     }
-  }else if(identifierNot){
-    let queryBuilder = tokenQueryBuilder(identifierNot, 'value', 'identifier', '','','not');
+  } else if (identifierNot){
+    let queryBuilder = tokenQueryBuilder(identifierNot, 'value', 'identifier', '', '', 'not');
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
     }
-  }else if(identifierText){
-    let queryBuilder = tokenQueryBuilder(identifierText, 'value', 'identifier.type.text', '','','text');
+  } else if (identifierText){
+    let queryBuilder = tokenQueryBuilder(identifierText, 'value', 'identifier.type.text', '', '', 'text');
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
     }
   }
 
 
-  if(link){
+  if (link){
     let queryBuilder = referenceQueryBuilder(link, 'link.other.reference');
-    console.log(queryBuilder)
+    console.log(queryBuilder);
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
     }
@@ -231,7 +229,7 @@ let buildStu3SearchQuery = (args) => {
 
   if (organization) {
     let queryBuilder = referenceQueryBuilder(organization, 'managingOrganization.reference');
-    console.log(queryBuilder)
+    console.log(queryBuilder);
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
     }
@@ -240,29 +238,28 @@ let buildStu3SearchQuery = (args) => {
 
 
   if (name) {
-    let queryBuilder = nameQueryBuilder(name, "");
+    let queryBuilder = nameQueryBuilder(name, '');
     for (let i in queryBuilder) {
       // query[i] = queryBuilder[i];
-      ors.push({"$or" : queryBuilder[i] })
+      ors.push({'$or': queryBuilder[i] });
     }
-  } else if(nameContains) {
-    let queryBuilder = nameQueryBuilder(nameContains, "contains");
+  } else if (nameContains) {
+    let queryBuilder = nameQueryBuilder(nameContains, 'contains');
     for (let i in queryBuilder) {
       // query[i] = queryBuilder[i];
-      ors.push({"$or" : queryBuilder[i] })
+      ors.push({'$or': queryBuilder[i] });
     }
-  } else if(nameExact) {
-    let queryBuilder = nameQueryBuilder(nameExact ,'exact');
+  } else if (nameExact) {
+    let queryBuilder = nameQueryBuilder(nameExact, 'exact');
     for (let i in queryBuilder) {
       // query[i] = queryBuilder[i];
-      ors.push({"$or" : queryBuilder[i] })
+      ors.push({'$or': queryBuilder[i] });
     }
   }
 
 
-  if(telecom){
+  if (telecom){
     let queryBuilder = tokenQueryBuilder(telecom, 'value', 'telecom', '');
-    console.log(telecom)
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
     }
@@ -291,17 +288,16 @@ module.exports.search = (args) =>
     query = buildStu3SearchQuery(args);
 
     // 20220921
-    const resultOptions = r4ResultParamsBuilder(args, r4PatientSrchParams)
+    const resultOptions = r4ResultParamsBuilder(args, r4PatientSrchParams);
 
-    // console.log(Object.keys(args))
-    console.log(resultOptions)
-    // console.log(query)  
+    console.log(Object.keys(args));
+    console.log(resultOptions);
+    console.log(query);
 
     // Grab an instance of our DB and collection
     let db = globals.get(CLIENT_DB);
     let collection = db.collection(`${COLLECTION.PATIENT}_${base_version}`);
     let Patient = getPatient(base_version);
-    
 
     // https://devsakaso.com/javascript-flat-flatmap-methods/
     // https://qiita.com/shuichi0712/items/cf966ad8bae9e610ea32
@@ -312,126 +308,125 @@ module.exports.search = (args) =>
     // https://stackoverflow.com/questions/48668232/recursive-function-and-map-for-accessing-elements-in-nested-array
 
     //データを取得する もしクエリストリングに_includeか_revincludeがあった際これを基にinclude,revinclude関数を動かす
-    const fetchOrginalDatas = async() => {      
-      const orgDatas = await collection.find(query,resultOptions._filter).limit(resultOptions._count).collation().toArray()
-      return orgDatas.map(item => new Patient(item)) //schema process
-    }
+    const fetchOrginalDatas = async() => {
+      const orgDatas = await collection.find(query, resultOptions._filter).limit(resultOptions._count).collation().toArray();
+      return orgDatas.map(item => new Patient(item)); //schema process
+    };
 
-    const fetchDatasCount = async() => {      
-      return {'total':await collection.find(query).count()}
-    }
+    const fetchDatasCount = async() => {
+      return {'total': await collection.find(query).count()};
+    };
 
-    // データ数を取得 _summary=count用 
+    // データ数を取得 _summary=count用
     const fetchSortedDatas = async() => {
-      const matchQuery =  { $match: {...resultOptions._sort.existChecker, ...query} }
-      console.log(JSON.stringify( resultOptions._filter ))
+      const matchQuery = { $match: {...resultOptions._sort.existChecker, ...query} };
+      console.log(JSON.stringify( resultOptions._filter ));
 
       const orgDatas = await collection.aggregate([resultOptions._sort.specifySortOrder, matchQuery, resultOptions._filter], resultOptions._sort.caseInsensitive)
-         .limit(resultOptions._count).toArray();   
-      return orgDatas.map(item => new Patient(item)) //schema process 
-    }
+         .limit(resultOptions._count).toArray();
+      return orgDatas.map(item => new Patient(item)); //schema process
+    };
 
-    // fetchOrginalDatasで取得したデータを基に、別データを取得 
+    // fetchOrginalDatasで取得したデータを基に、別データを取得
     const fetch_includeDatas = async(datas) => {
       //1. queryを基にデータをとってくる
-      const originalDatas = datas
-      const nestPath = "reference"
+      const originalDatas = datas;
+      const nestPath = 'reference';
 
       //2. fhirのPatientパラメーターからtype="reference"のオブジェクトを抽出してデータ構造を {name: {...}, name: {...}, ...}に整形して吐き出し
       const refTypeParams = r4PatientSrchParams
-                            .filter(valueOf => valueOf.fhirtype == nestPath)
+                            .filter(valueOf => valueOf.fhirtype === nestPath)
                             .reduce((obj, data) => ({...obj, [data.name]: data}), {});
 
-      //3. クエリストリングの_include値とrefTypeParamsを基に検索用のオブジェクトを作成　
-      const queryStrsObj =  resultOptions._include.map(queryKey => {
-        const isSingle =  queryKey.length == 1 //配列の数が1かどうか
-        const pathBuilder = (dataName) => dataName?.xpath?.split(".").slice(1).join('.'); // Eg: Patient.link.other => link.other
-        // const pathBuilder = (dataName) => String(dataName?.xpath?.match(/\w+[^.]+/g).slice(1).join('.')); // same process as above 
+      //3. クエリストリングの_include値とrefTypeParamsを基に検索用のオブジェクトを作成
+      const queryStrsObj = resultOptions._include.map(queryKey => {
+        const isSingle = queryKey.length === 1; //配列の数が1かどうか
+        const pathBuilder = (dataName) => dataName?.xpath?.split('.').slice(1).join('.'); // Eg: Patient.link.other => link.other
+        // const pathBuilder = (dataName) => String(dataName?.xpath?.match(/\w+[^.]+/g).slice(1).join('.')); // same process as above
 
-        return isSingle ? 
-          { 'targetPath': pathBuilder(refTypeParams[queryKey]) , 'targetCollection': capitalizeInitial(queryKey[0]) } : 
-          { 'targetPath': pathBuilder(refTypeParams[queryKey[0]]), 'targetCollection': capitalizeInitial(queryKey[1]) }
-      })
-      
-      // 4. originalDatasからqueryStrsObjに当てはまるものを取得 
+        return isSingle ?
+          { 'targetPath': pathBuilder(refTypeParams[queryKey]), 'targetCollection': capitalizeInitial(queryKey[0]) } :
+          { 'targetPath': pathBuilder(refTypeParams[queryKey[0]]), 'targetCollection': capitalizeInitial(queryKey[1]) };
+      });
+
+      // 4. originalDatasからqueryStrsObjに当てはまるものを取得
       const datasOfFitTheQueryStrs = queryStrsObj.map(valueOf => {
         const findNestedData = (node, pathArr, index = 0) => {
           const path = pathArr[index];
           const entry = node.map(e => e[path]).flat().filter(Boolean);
           if (!entry) { return null; }
           ++index;
-          return index < pathArr.length ? findNestedData(entry, pathArr, index) : entry.filter(item => item[nestPath].split("/")[0] == valueOf.targetCollection );
-        }
-        return findNestedData(originalDatas, valueOf.targetPath.split("."))
-      }).flat().map(item => typeof(item) == "object"? item[nestPath] : item )
+          return index < pathArr.length ? findNestedData(entry, pathArr, index) : entry.filter(item => item[nestPath].split('/')[0] === valueOf.targetCollection );
+        };
+        return findNestedData(originalDatas, valueOf.targetPath.split('.'));
+      }).flat().map(item => typeof (item) === 'object' ? item[nestPath] : item );
 
-  
       // 5. datasOfFitTheQueryStrsを整形(重複を削除、ネストを取り除く)
       const toDedupeAndFlattenDatas = [...new Set(datasOfFitTheQueryStrs.flat().map(item => item))];
 
       // 6. toDeduplicateAndFlattenの値を基にDB検索/取得
       const fetchDatasFromMongo = toDedupeAndFlattenDatas.map(async(item) =>{
-        const [refcollection,refid] = item.split('/')
-        const schema = resolveSchema(base_version, capitalizeInitial(refcollection))
-        const datas = await db.collection( `${capitalizeInitial(refcollection)}_${base_version}` ).find( { id:refid } ).toArray()
-        return datas.map(item => new schema(item))
-      })
+        const [refcollection, refid] = item.split('/');
+        const Schema = resolveSchema(base_version, capitalizeInitial(refcollection));
+        const includedata = await db.collection( `${capitalizeInitial(refcollection)}_${base_version}` ).find( { id: refid } ).toArray();
+        return includedata.map(includeitem => new Schema(includeitem));
+      });
 
       // 7. 値返却
-      const result =  await Promise.all(fetchDatasFromMongo)
-      return [].concat(...result.map(item => item))
-    }  
+      const result = await Promise.all(fetchDatasFromMongo);
+      return [].concat(...result.map(item => item));
+    };
 
     // fetchOrginalDatasで取得したデータを基に、別データを取得
     const fetch_revincludeDatas = async(datas) => {
-      const nestPath = "reference" 
-      const originalDatas = datas
+      const nestPath = 'reference';
+      const originalDatas = datas;
 
       //2. obj.revinclude値を基にオブジェクトを作成
-      const searchKeys =  resultOptions._revinclude.map(item => {
-        //三項演算子 => [if文 ? whenIsTrue : whenIsFalse]　https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Operators/Conditional_Operator
-        const targetCollection =  item[0]
-        const targetKey = item[1]
-        return  {targetCollection,targetKey}
-      })
-      
+      const searchKeys = resultOptions._revinclude.map(item => {
+        //三項演算子 => [if文 ? whenIsTrue : whenIsFalse] https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Operators/Conditional_Operator
+        const targetCollection = item[0];
+        const targetKey = item[1];
+        return {targetCollection, targetKey};
+      });
+
       //3. originalDatasからidを取り出して加工する
-      const shapingOrgDatas = originalDatas.map(valueOf => { return `Patient/${valueOf.id}` }) 
-      
+      const shapingOrgDatas = originalDatas.map(valueOf => { return `Patient/${valueOf.id}`; });
+
       //4. クエリを作成してmongoDBで検索
       const fetchDatasFromMongo = searchKeys.map(async(valueOf) => {
 
-        const collection = `${valueOf.targetCollection}_${base_version}`
-        const path = `${valueOf.targetKey}.${nestPath}`
-        const mongoQuery = { $or: shapingOrgDatas.map(id => { return { [path] : id } }) }
+        const revincludeCollection = `${valueOf.targetCollection}_${base_version}`;
+        const path = `${valueOf.targetKey}.${nestPath}`;
+        const mongoQuery = { $or: shapingOrgDatas.map(id => { return { [path]: id }; }) };
 
-        return await db.collection(collection).find( mongoQuery ).toArray()
-      })
+        return await db.collection(revincludeCollection).find( mongoQuery ).toArray();
+      });
 
       //4. 結合
-      const result = await Promise.all(fetchDatasFromMongo)
-      return [].concat(...result.map(item => item))
-    }
+      const result = await Promise.all(fetchDatasFromMongo);
+      return [].concat(...result.map(item => item));
+    };
 
     // データを返す
     const search = async() => {
-      
-      try{
-        if(resultOptions._filter == 'count'){ 
-          return await fetchDatasCount()
+
+      try {
+        if (resultOptions._filter === 'count'){
+          return await fetchDatasCount();
         } else {
-          const arr = []
+          const arr = [];
           const orgDatas = await fetchOrginalDatas();
           // const orgDatas = resultOptions._sort ? await fetchSortedDatas() : await fetchOrginalDatas()
           arr.push(orgDatas);
-          if(resultOptions._include)    { arr.push(await fetch_includeDatas(orgDatas))    };
-          if(resultOptions._revinclude) { arr.push(await fetch_revincludeDatas(orgDatas)) };
-          return arr.flat() // Eg: [[item1], [item2], [item3]] => [item1, item2, item3]
+          if (resultOptions._include) { arr.push(await fetch_includeDatas(orgDatas)); }
+          if (resultOptions._revinclude) { arr.push(await fetch_revincludeDatas(orgDatas)); }
+          return arr.flat(); // Eg: [[item1], [item2], [item3]] => [item1, item2, item3]
         }
-      } catch(err){
+      } catch (err){
         reject(new Error(err));
       }
-    }
+    };
     resolve(search());
   });
 
@@ -476,7 +471,7 @@ module.exports.create = (args, { req }) =>
 
     // If no resource ID was provided, generate one.
     let id = getUuid(patient);
-    console.log(id)
+    console.log(id);
     // Create the resource's metadata
     let Meta = getMeta(base_version);
     patient.meta = new Meta({
@@ -536,7 +531,7 @@ module.exports.update = (args, { req }) =>
 
       let Patient = getPatient(base_version);
       let patient = new Patient(resource);
-      let jst = moment.utc().local().format('YYYY-MM-DDTHH:mm:ssZ')
+      let jst = moment.utc().local().format('YYYY-MM-DDTHH:mm:ssZ');
 
       if (data && data.meta) {
         let foundPatient = new Patient(data);
@@ -555,7 +550,7 @@ module.exports.update = (args, { req }) =>
       let cleaned = JSON.parse(JSON.stringify(patient));
       // let doc = Object.assign(cleaned, { _id: id });
       let doc = Object.assign(cleaned);
-      console.log(doc)
+      console.log(doc);
 
       // Insert/update our patient record
       if ('id' in doc){
@@ -564,10 +559,10 @@ module.exports.update = (args, { req }) =>
             logger.error('Error with Patient.update: ', err2);
             return reject(err2);
           }
-  
+
           // save to history
           let history_collection = db.collection(`${COLLECTION.PATIENT}_${base_version}_History`);
-          
+
           // let history_patient = Object.assign(cleaned, { _id: id + "-" +cleaned.meta.versionId });
             let history_patient = Object.assign(cleaned);
 
@@ -577,7 +572,7 @@ module.exports.update = (args, { req }) =>
               logger.error('Error with PatientHistory.create: ', err3);
               return reject(err3);
             }
-  
+
             return resolve({
               id: id,
               created: res.lastErrorObject && !res.lastErrorObject.updatedExisting,
@@ -585,10 +580,10 @@ module.exports.update = (args, { req }) =>
             });
           });
         });
-      } else{
+      } else {
           const err = new Error('Can not update resource, resource body must contain an ID element for update (PUT) operation');
           // logger.error(err)
-          return reject(err)
+          return reject(err);
       }
 
     });

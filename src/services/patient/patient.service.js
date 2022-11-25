@@ -25,17 +25,11 @@ const {
   dateQB,
 } = require('../../utils/querybuilder.util');
 
-const {
-  _elementsQueryBuilder,
-  _includeParamsBuilder,
-  _revincludeParamsBuilder,
-  _sortQueryBuilder
-} = require('../../utils/searchResultParams.util');
+const { r4ResultParamsBuilder,} = require('../../utils/searchResultParams.util');
 
 const { forEach } = require('../../globals');
 const { link } = require('@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/patient.parameters');
 
-const defaultRecordCounts = 10;
 
 let getPatient = (base_version) => {
   return resolveSchema(base_version, 'Patient');
@@ -43,32 +37,6 @@ let getPatient = (base_version) => {
 
 let getMeta = (base_version) => {
   return resolveSchema(base_version, 'Meta');
-};
-
-let buildR4ResultParams = (args) => {
-  let query = {};
-  let { _count, _sort, _elements, _include, _revinclude } = args;
-
-  if(_count) { query.count  = _count }
-
-  if(_sort ) { 
-    query.sort = _sortQueryBuilder(_sort,r4PatientSrchParams);
-  }
-
-  if(_include ) { 
-    query.include = _includeParamsBuilder(_include);
-  }
-
-  if(_revinclude ) { 
-    query.revinclude = _revincludeParamsBuilder(_revinclude);
-  }
-  
-  if(_elements){
-    // _elements検索ができる値を格納
-    query.elements = _elementsQueryBuilder(_elements);
-
-  }
-  return query
 };
 
 let buildStu3SearchQuery = (args) => {
@@ -323,16 +291,7 @@ module.exports.search = (args) =>
     query = buildStu3SearchQuery(args);
 
     // 20220921
-    let resParams = {}
-    resParams = buildR4ResultParams(args)
-
-    const resultOptions = {
-      count   : resParams.count || defaultRecordCounts, // defaultRecordCounts = 10
-      sort    : resParams.sort,
-      elements : resParams.elements,
-      include : resParams.include,
-      revinclude : resParams.revinclude
-    }
+    const resultOptions = r4ResultParamsBuilder(args, r4PatientSrchParams)
 
     console.log(Object.keys(args))
     console.log(resultOptions)
@@ -353,15 +312,17 @@ module.exports.search = (args) =>
     // https://stackoverflow.com/questions/48668232/recursive-function-and-map-for-accessing-elements-in-nested-array
 
     //データを取得する もしクエリストリングに_includeか_revincludeがあった際これを基にinclude,revinclude関数を動かす
-    const fetchOrginalDatas = async() => {
-      // return await collection.find(query,obj.element).limit(obj.count).sort(obj.sort).collation().toArray()
-      const orgDatas = await collection.find(query,resultOptions.elements).limit(resultOptions.count).collation().toArray()
+    const fetchOrginalDatas = async() => {      
+      const orgDatas = await collection.find(query,resultOptions._filter).limit(resultOptions._count).collation().toArray()
       return orgDatas.map(item => new Patient(item)) //schema process
     }
 
     const fetchSortedDatas = async() => {
-      const matchQuery =  { $match: {...resultOptions.sort.existChecker, ...query } }
-      const orgDatas = await collection.aggregate([resultOptions.sort.specifySortOrder, matchQuery ], resultOptions.sort.caseInsensitive).limit(resultOptions.count).toArray();   
+      const matchQuery =  { $match: {...resultOptions._sort.existChecker, ...query} }
+      console.log(JSON.stringify( resultOptions._filter ))
+
+      const orgDatas = await collection.aggregate([resultOptions._sort.specifySortOrder, matchQuery, resultOptions._filter], resultOptions._sort.caseInsensitive)
+         .limit(resultOptions._count).toArray();   
       return orgDatas.map(item => new Patient(item)) //schema process 
     }
 
@@ -377,7 +338,7 @@ module.exports.search = (args) =>
                             .reduce((obj, data) => ({...obj, [data.name]: data}), {});
 
       //3. クエリストリングの_include値とrefTypeParamsを基に検索用のオブジェクトを作成　
-      const queryStrsObj =  resultOptions.include.map(queryKey => {
+      const queryStrsObj =  resultOptions._include.map(queryKey => {
         const isSingle =  queryKey.length == 1 //配列の数が1かどうか
         const pathBuilder = (dataName) => dataName?.xpath?.split(".").slice(1).join('.'); // Eg: Patient.link.other => link.other
         // const pathBuilder = (dataName) => String(dataName?.xpath?.match(/\w+[^.]+/g).slice(1).join('.')); // same process as above 
@@ -422,7 +383,7 @@ module.exports.search = (args) =>
       const originalDatas = datas
 
       //2. obj.revinclude値を基にオブジェクトを作成
-      const searchKeys =  resultOptions.revinclude.map(item => {
+      const searchKeys =  resultOptions._revinclude.map(item => {
         //三項演算子 => [if文 ? whenIsTrue : whenIsFalse]　https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Operators/Conditional_Operator
         const targetCollection =  item[0]
         const targetKey = item[1]
@@ -451,12 +412,11 @@ module.exports.search = (args) =>
     const search = async() => {
       const arr = []
       try{
-        const orgDatas = resultOptions.sort ? await fetchSortedDatas() : await fetchOrginalDatas()
-        arr.push(orgDatas);
-        if(resultOptions.include)    { arr.push(await fetch_includeDatas(orgDatas))    };
-        if(resultOptions.revinclude) { arr.push(await fetch_revincludeDatas(orgDatas)) };
-        return arr.flat() // Eg: [[item1], [item2], [item3]] => [item1, item2, item3]
-
+          const orgDatas = resultOptions._sort ? await fetchSortedDatas() : await fetchOrginalDatas()
+          arr.push(orgDatas);
+          if(resultOptions._include)    { arr.push(await fetch_includeDatas(orgDatas))    };
+          if(resultOptions._revinclude) { arr.push(await fetch_revincludeDatas(orgDatas)) };
+          return arr.flat() // Eg: [[item1], [item2], [item3]] => [item1, item2, item3]
       } catch(err){
         reject(new Error(err));
       }

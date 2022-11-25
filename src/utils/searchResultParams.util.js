@@ -1,13 +1,17 @@
+const { 
+  unknownParameterValue,
+  cannotCombineParameterValues
+} = require('./error.util');
+
 // _elements,_sortに関してはqueryを作成
 // _include,_revincludeは他のリソースを読み取るためのパラメーターを配列として返却
 // _countはクエリ作成が必要ないためそのまま使用
-
 //https://www.hl7.org/fhir/search.html#elements
 //https://www.mongodb.com/community/forums/t/projection-does-not-allow-exclusion-inclusion-together/31756
 //https://chaika.hatenablog.com/entry/2019/05/07/083000
-const _elementsQueryBuilder = (target) => {
-  const validValues = target.split(',').filter((elm) => elm !== undefined);
 
+const _elementsQueryBuilder = (target, fieldType) => {
+  const validValues = target.split(',').filter(Boolean);
 
   //1文字目がハイフンでないならvisibleElm 1文字目がハイフンならhiddenElm
   const hasHyphen = /^([-])([a-zA-Z0-9.,$;]+$)/
@@ -17,24 +21,24 @@ const _elementsQueryBuilder = (target) => {
   //もし配列両方に値が入ってたら or もしvisibleElm配列にのみ値が入ってたら  -> visibleElmのみでクエリをつくる
   //もしhiddenElmにのみ値が入っていたなら -> ハイフンを取り除いてhiddenElmのみでクエリをつくる
   if(visibleElm.length && hiddenElm.length  || visibleElm.length  && !hiddenElm.length){ 
-    return  { fields: visibleElm.reduce((obj, elm) => ({...obj, [elm]: 1}), {"id":1, "meta":1}) } 
+    return  { [fieldType]: visibleElm.reduce((obj, elm) => ({...obj, [elm]: 1}), {"id":1, "meta":1}) } 
   } else if (!visibleElm.length  && hiddenElm.length ){  
-    return  { fields: hiddenElm.reduce((obj, elm) => ({...obj, [elm.substr(1)]: 0}), {"id":1, "meta":1}) }
+    return  { [fieldType]: hiddenElm.reduce((obj, elm) => ({...obj, [elm.substr(1)]: 0}), {"id":1, "meta":1}) }
   }
 };
 
 const _includeParamsBuilder = (target) => {
   //正規表現: カンマ区切りで分割  eg: Patient:organization -> match1=Patient, match2=organization
   const reg = /\w+[^:]+/g  ///\w+\s*(?:(?:;(?:\s*\w+\s*)?)+)?/
-  const commaSplitter = target.split(',')
-  return commaSplitter.map(elm => { return elm.match(reg).slice(1) })
-}
+  const commaSplitter = target.split(',');
+  return commaSplitter.filter(Boolean).map(elm => { return elm.match(reg).slice(1) })
+};
 
 const _revincludeParamsBuilder = (target) => {
   const reg = /\w+[^:]+/g  ///\w+\s*(?:(?:;(?:\s*\w+\s*)?)+)?/
   const commaSplitter = target.split(',')
-  return commaSplitter.map(elm => { return elm.match(reg) })
-}
+  return commaSplitter.filter(Boolean).map(elm => { return elm.match(reg) })
+};
 
 const _sortQueryBuilder = (target, srchParams) =>{
   const hasHyphen = /^([-])([a-zA-Z0-9.,$;-]+$)/
@@ -52,7 +56,7 @@ const _sortQueryBuilder = (target, srchParams) =>{
     } else if(!hasHyphen.test(str) && str in refSrchParams){
         return { targetPath: pathBuilder(refSrchParams[str].xpath), sortOrder: 1}
     } else {
-        throw (new Error(`Unknown _sort parameter value [${str}]. Valid values for this search are: [${Object.keys(refSrchParams)}]`));
+      throw (unknownParameterValue('_sort', str, Object.keys(refSrchParams)))
     }
   })
 
@@ -60,13 +64,51 @@ const _sortQueryBuilder = (target, srchParams) =>{
     specifySortOrder.$sort[valueOf.targetPath] = valueOf.sortOrder;
     existChecker[valueOf.targetPath] = { $exists: true };
   })
-  
   return {specifySortOrder, existChecker, caseInsensitive}
+};
+
+const _summaryQueryBuilder = (target,fieldType) =>{
+  const r4SummaryTextValues = ['id', 'meta', 'text'];
+  const qB = (arr) => { return arr.reduce((obj, data) => ({...obj, [data]: 1}), {}) };
+
+  if(target == 'text'){
+    return { [fieldType] : qB(r4SummaryTextValues) }
+  }
 }
 
+const r4ResultParamsBuilder = (args,srchParams) => {
+  const defaultRecordCounts = 10;
+  let query = {};
+  let { _count, _sort, _elements, _include, _revinclude, _summary } = args;
+
+  if(_elements && _summary){ 
+    throw (cannotCombineParameterValues(['_elements','_summary'])); 
+  }
+  if(_sort && _elements) {
+    query._sort       = _sortQueryBuilder(_sort,srchParams); 
+    query._filter   = _elementsQueryBuilder(_elements, '$project');
+  } 
+  if(_sort && _summary) {
+    query._sort   = _sortQueryBuilder(_sort,srchParams); 
+    query._filter = _summaryQueryBuilder(_summary,'$project' );
+  };
+
+  if(!_sort && _elements)   { query._filter = _elementsQueryBuilder(_elements,'fields') };
+  if(!_sort && _summary)    { query._filter = _summaryQueryBuilder(_summary,'fields' ) };
+  if(_count)      { query._count      = _count };
+  if(_include)    { query._include    = _includeParamsBuilder(_include) };
+  if(_revinclude) { query._revinclude = _revincludeParamsBuilder(_revinclude) };
+
+
+  return {
+    _count      : query._count || defaultRecordCounts, // defaultRecordCounts = 10
+    _sort       : query._sort,
+    _filter     : query._filter ,
+    _include    : query._include,
+    _revinclude : query._revinclude,
+  }
+};
+
 module.exports = {
-  _elementsQueryBuilder,
-  _includeParamsBuilder,
-  _revincludeParamsBuilder,
-  _sortQueryBuilder
+  r4ResultParamsBuilder,
 };

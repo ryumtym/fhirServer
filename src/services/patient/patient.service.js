@@ -293,7 +293,7 @@ module.exports.search = (args) =>
     // 20220921
     const resultOptions = r4ResultParamsBuilder(args, r4PatientSrchParams)
 
-    console.log(Object.keys(args))
+    // console.log(Object.keys(args))
     console.log(resultOptions)
     // console.log(query)  
 
@@ -317,6 +317,11 @@ module.exports.search = (args) =>
       return orgDatas.map(item => new Patient(item)) //schema process
     }
 
+    const fetchDatasCount = async() => {      
+      return {'total':await collection.find(query).count()}
+    }
+
+    // データ数を取得 _summary=count用 
     const fetchSortedDatas = async() => {
       const matchQuery =  { $match: {...resultOptions._sort.existChecker, ...query} }
       console.log(JSON.stringify( resultOptions._filter ))
@@ -410,13 +415,19 @@ module.exports.search = (args) =>
 
     // データを返す
     const search = async() => {
-      const arr = []
+      
       try{
-          const orgDatas = resultOptions._sort ? await fetchSortedDatas() : await fetchOrginalDatas()
+        if(resultOptions._filter == 'count'){ 
+          return await fetchDatasCount()
+        } else {
+          const arr = []
+          const orgDatas = await fetchOrginalDatas();
+          // const orgDatas = resultOptions._sort ? await fetchSortedDatas() : await fetchOrginalDatas()
           arr.push(orgDatas);
           if(resultOptions._include)    { arr.push(await fetch_includeDatas(orgDatas))    };
           if(resultOptions._revinclude) { arr.push(await fetch_revincludeDatas(orgDatas)) };
           return arr.flat() // Eg: [[item1], [item2], [item3]] => [item1, item2, item3]
+        }
       } catch(err){
         reject(new Error(err));
       }

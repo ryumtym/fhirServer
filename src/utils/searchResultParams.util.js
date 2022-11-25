@@ -1,9 +1,9 @@
 const { 
-  unknownParameterValue,
-  cannotCombineParameterValues
+  unknownParameterError,
+  cannotCombineParameterError
 } = require('./error.util');
 
-// _elements,_sortに関してはqueryを作成
+// _elements,_sumary,_sortに関してはqueryを作成, _elements&_summaryは一緒に使えない事に注意
 // _include,_revincludeは他のリソースを読み取るためのパラメーターを配列として返却
 // _countはクエリ作成が必要ないためそのまま使用
 //https://www.hl7.org/fhir/search.html#elements
@@ -56,7 +56,7 @@ const _sortQueryBuilder = (target, srchParams) =>{
     } else if(!hasHyphen.test(str) && str in refSrchParams){
         return { targetPath: pathBuilder(refSrchParams[str].xpath), sortOrder: 1}
     } else {
-      throw (unknownParameterValue('_sort', str, Object.keys(refSrchParams)))
+      throw (unknownParameterError('_sort', str, Object.keys(refSrchParams)))
     }
   })
 
@@ -69,11 +69,16 @@ const _sortQueryBuilder = (target, srchParams) =>{
 
 const _summaryQueryBuilder = (target,fieldType) =>{
   const r4SummaryTextValues = ['id', 'meta', 'text'];
-  const qB = (arr) => { return arr.reduce((obj, data) => ({...obj, [data]: 1}), {}) };
-
-  if(target == 'text'){
-    return { [fieldType] : qB(r4SummaryTextValues) }
-  }
+  const r4SummaryDataValues = ['text'];
+  const r4SummaryTrueValues = [ 'identifier', 'active', 'name', 'telecom', 'gender', 'birthDate', 'address', 'managingOrganization', 'link'];
+  
+  const qB = (arr,orderNum) => { return arr.reduce((obj, data) => ({...obj, [data]: orderNum}), {}) };
+  
+  if(target == 'count') { return 'count'};
+  if(target == 'data' ) { return { [fieldType] : qB(r4SummaryDataValues, 0) } };
+  if(target == 'false') { return 'false'};
+  if(target == 'text' ) { return { [fieldType] : qB(r4SummaryTextValues, 1) } };
+  if(target == 'true' ) { return { [fieldType] : qB([...r4SummaryTextValues, ...r4SummaryTrueValues], 1)}};
 }
 
 const r4ResultParamsBuilder = (args,srchParams) => {
@@ -81,28 +86,16 @@ const r4ResultParamsBuilder = (args,srchParams) => {
   let query = {};
   let { _count, _sort, _elements, _include, _revinclude, _summary } = args;
 
-  if(_elements && _summary){ 
-    throw (cannotCombineParameterValues(['_elements','_summary'])); 
-  }
-  if(_sort && _elements) {
-    query._sort       = _sortQueryBuilder(_sort,srchParams); 
-    query._filter   = _elementsQueryBuilder(_elements, '$project');
-  } 
-  if(_sort && _summary) {
-    query._sort   = _sortQueryBuilder(_sort,srchParams); 
-    query._filter = _summaryQueryBuilder(_summary,'$project' );
-  };
+  if(_elements && _summary){ throw (cannotCombineParameterError(['_elements','_summary'])) };
 
-  if(!_sort && _elements)   { query._filter = _elementsQueryBuilder(_elements,'fields') };
-  if(!_sort && _summary)    { query._filter = _summaryQueryBuilder(_summary,'fields' ) };
-  if(_count)      { query._count      = _count };
-  if(_include)    { query._include    = _includeParamsBuilder(_include) };
-  if(_revinclude) { query._revinclude = _revincludeParamsBuilder(_revinclude) };
-
+  if(_elements)   { query._filter     = _elementsQueryBuilder(_elements,'fields') };
+  if(_summary)    { query._filter     = _summaryQueryBuilder(_summary,'fields' )  };
+  if(_count)      { query._count      = _count                                    };
+  if(_include)    { query._include    = _includeParamsBuilder(_include)           };
+  if(_revinclude) { query._revinclude = _revincludeParamsBuilder(_revinclude)     };
 
   return {
     _count      : query._count || defaultRecordCounts, // defaultRecordCounts = 10
-    _sort       : query._sort,
     _filter     : query._filter ,
     _include    : query._include,
     _revinclude : query._revinclude,

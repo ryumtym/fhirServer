@@ -1,4 +1,4 @@
-const cannotCombineParameterValues = (params) => {
+const cannotCombineParameterError = (params) => {
   return new Error(`Cannot combine the [${params}] parameters`);
 };
 
@@ -7,11 +7,11 @@ const cannotCombineParameterValues = (params) => {
  * @description when got unknown Parameter Values then return err
  * @Example throw (unknownParameterValue('_sort', nmae, ['birthDate','name'])
  */
-const unknownParameterValue = (param, value, srchableParams) => {
+const unknownParameterError = (param, value, srchableParams) => {
   return new Error(`Unknown ${param} parameter value [${value}]. Valid values for this search are: [${srchableParams}]`);
 };
 
 module.exports = {
-  cannotCombineParameterValues,
-  unknownParameterValue
+  cannotCombineParameterError,
+  unknownParameterError
 };

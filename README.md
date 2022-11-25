@@ -7,6 +7,7 @@
 | _include    |                         | ?_include=Patient:general-practitioner:Practitioner |
 | _revinclude |                         | _revinclude=Observation:subject                     |
 | _elements   |                         | ?_elements=-identifier,name                         |
+| _summary    |                         | count, data, false, text, true                      |
 
 **[Common search params](https://hl7.org/fhir/search.html#all)**
 | Summary     | modif :heavy_check_mark:| example             |

@@ -70,6 +70,7 @@ const _sortQueryBuilder = (target, srchParams) =>{
 const _summaryQueryBuilder = (target,fieldType) =>{
   const r4SummaryTextValues = ['id', 'meta', 'text'];
   const r4SummaryDataValues = ['text'];
+  // test for patient resource
   const r4SummaryTrueValues = [ 'identifier', 'active', 'name', 'telecom', 'gender', 'birthDate', 'address', 'managingOrganization', 'link'];
   
   const qB = (arr,orderNum) => { return arr.reduce((obj, data) => ({...obj, [data]: orderNum}), {}) };
@@ -81,6 +82,7 @@ const _summaryQueryBuilder = (target,fieldType) =>{
   if(target == 'true' ) { return { [fieldType] : qB([...r4SummaryTextValues, ...r4SummaryTrueValues], 1)}};
 }
 
+// _sort logic is still so annyoing.
 const r4ResultParamsBuilder = (args,srchParams) => {
   const defaultRecordCounts = 10;
   let query = {};

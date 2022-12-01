@@ -24,16 +24,51 @@ index c7f6242..9213101 100644
    /**
     * @description Export Server Error class for people to throw from services
     * This will in turn generate an operation outcome
+diff --git a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/index.js b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/index.js
+index 7c579cb..53596b3 100644
+--- a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/index.js
++++ b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/index.js
+@@ -218,6 +218,8 @@ const researchsubject = require('./researchsubject.parameters.js');
+ 
+ const resource = require('./resource.parameters.js');
+ 
++const result = require('./result.parameters.js');
++
+ const riskassessment = require('./riskassessment.parameters.js');
+ 
+ const riskevidencesynthesis = require('./riskevidencesynthesis.parameters.js');
+@@ -373,6 +375,7 @@ module.exports = {
+   researchstudy,
+   researchsubject,
+   resource,
++  result,
+   riskassessment,
+   riskevidencesynthesis,
+   schedule,
 diff --git a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/resource.parameters.js b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/resource.parameters.js
-index 8886a1b..41544ad 100644
+index 8886a1b..3cd881b 100644
 --- a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/resource.parameters.js
 +++ b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/resource.parameters.js
-@@ -59,5 +59,40 @@ module.exports = {
+@@ -59,5 +59,5 @@ module.exports = {
      xpath: 'Resource.meta.tag',
      definition: 'http://hl7.org/fhir/SearchParameter/Resource-tag',
      description: 'Tags applied to this resource'
 -  }
 +  },
+ };
+\ No newline at end of file
+diff --git a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/result.parameters.js b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/result.parameters.js
+new file mode 100644
+index 0000000..93461e2
+--- /dev/null
++++ b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/result.parameters.js
+@@ -0,0 +1,49 @@
++/**
++ * @name exports
++ * @static
++ * @summary Arguments for the reult query
++ */
++module.exports = {
 +  _sort: {
 +    type: 'string',
 +    fhirtype: 'string',
@@ -67,9 +102,16 @@ index 8886a1b..41544ad 100644
 +    fhirtype: 'string',
 +    xpath: '',
 +    definition: '',
-+    description: 'Other resources to include in the search results that search matches point to'
++    description: 'Other resources to include in the search results when they refer to search matches'
 +  },
- };
++  _summary: {
++    type: 'string',
++    fhirtype: 'string',
++    xpath: '',
++    definition: '',
++    description: 'Just return the summary elements (for resources where this is defined)'
++  },
++};
 \ No newline at end of file
 diff --git a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/schemas/observation.js b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/schemas/observation.js
 index c3701ca..d0211d6 100644
@@ -92,7 +134,7 @@ index c3701ca..d0211d6 100644
      });
      Object.defineProperty(this, 'effectivePeriod', {
 diff --git a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/router.js b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/router.js
-index c1711ab..1ef74a8 100644
+index c1711ab..6832a36 100644
 --- a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/router.js
 +++ b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/router.js
 @@ -115,7 +115,6 @@ function loadController(lowercaseKey, interaction, service) {
@@ -103,18 +145,38 @@ index c1711ab..1ef74a8 100644
    for (let op of profile.operation) {
      let functionName = hyphenToCamelcase(op.name || '');
      let hasController = profile.serviceModule ? Object.keys(profile.serviceModule).includes(functionName) : false; // Check for required configurations, must have name, route, method, and
+@@ -235,7 +234,6 @@ function enableResourceRoutes(app, config, corsDefaults) {
+     // so load anything related to the key here and handle with one simple error
+ 
+     let parameters;
+-
+     try {
+       parameters = versions.reduce((all, version) => all.concat(getSearchParameters(lowercaseKey, version, overrideArguments)), []);
+     } catch (err) {
 diff --git a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/params.utils.js b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/params.utils.js
-index ff294d0..cf6696e 100644
+index ff294d0..72b2db9 100644
 --- a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/params.utils.js
 +++ b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/params.utils.js
-@@ -56,6 +56,7 @@ const getSearchParameters = (profile, version, customArgsModule, logger) => {
-   allArguments = Object.assign(allArguments, getParameters(version, 'resource')); // Everyone has a DomainResource and Resource parameter we want to include
+@@ -50,17 +50,17 @@ const getSearchParameters = (profile, version, customArgsModule, logger) => {
+     }, {});
+   } else {
+     allArguments = getParameters(version, lowercaseProfileName);
++
+   } // Load our common arguments that apply to all resources
+ 
+ 
+-  allArguments = Object.assign(allArguments, getParameters(version, 'resource')); // Everyone has a DomainResource and Resource parameter we want to include
++  allArguments = Object.assign(allArguments, getParameters(version, 'resource'), getParameters(version, 'result')); // Everyone has a DomainResource and Resource parameter we want to include
    // except DSTU2(1_0_2), so do not attempt to assign that in DSTU2
  
-+
    if (version !== '1_0_2') {
      allArguments = Object.assign(allArguments, getParameters(version, 'domainresource'));
    } // Convert these into an array
+ 
+-
+   return Object.getOwnPropertyNames(allArguments).map(name => {
+     return Object.assign({
+       versions: version,
 diff --git a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/params.utils.test.js b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/params.utils.test.js
 index db87e28..4baf8fb 100644
 --- a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/params.utils.test.js

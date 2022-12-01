@@ -1,5 +1,11 @@
 /*eslint no-unused-vars: "warn"*/
-
+    // https://devsakaso.com/javascript-flat-flatmap-methods/
+    // https://qiita.com/shuichi0712/items/cf966ad8bae9e610ea32
+    // https://qiita.com/Yametaro/items/17f5a0434afa9b88c3b1
+    // https://maku77.github.io/js/array/concat.html
+    // https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Global_Objects/Set
+    // https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Operators/Conditional_Operator
+    // https://stackoverflow.com/questions/48668232/recursive-function-and-map-for-accessing-elements-in-nested-array
 const { VERSIONS } = require('@asymmetrik/node-fhir-server-core').constants;
 const { resolveSchema } = require('@asymmetrik/node-fhir-server-core');
 const { COLLECTION, CLIENT_DB } = require('../../constants');
@@ -8,10 +14,9 @@ const globals = require('../../globals');
 const jsonpatch = require('fast-json-patch');
 
 const { getUuid } = require('../../utils/uid.util');
-const { capitalizeInitial } = require('../../utils/functions.util');
+const { capitalizeInitial, } = require('../../utils/functions.util');
 
 const logger = require('@asymmetrik/node-fhir-server-core').loggers.get();
-
 const fhirParams = require('@asymmetrik/node-fhir-server-core').getSearchParameters;
 const r4PatientSrchParams = fhirParams.getSearchParameters('Patient', '4_0_0');
 
@@ -25,11 +30,9 @@ const {
   dateQB,
 } = require('../../utils/querybuilder.util');
 
-const { r4ResultParamsBuilder,} = require('../../utils/searchResultParams.util');
-
+const { r4ResultParamsBuilder, R4ResultParamsBuilder} = require('../../utils/searchResultParams.util');
 // const { forEach } = require('../../globals');
 // const { link } = require('@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/patient.parameters');
-
 
 let getPatient = (base_version) => {
   return resolveSchema(base_version, 'Patient');
@@ -42,14 +45,9 @@ let getMeta = (base_version) => {
 let buildStu3SearchQuery = (args) => {
 
   // Common search params
-  let { _content, _format, _id, _lastUpdated, _profile, _query, _security, _tag } = args;
-
-  // Search Result params
-  let { _INCLUDE, _REVINCLUDE, _SORT, _COUNT, _SUMMARY, _elements, _CONTAINED, _CONTAINEDTYPED } =
-    args;
+  let { _id, _lastUpdated } = args;
 
   // Patient search params
-
   let active = args['active'];
   let activeNot = args['active:not'];
   let activeMissing = args['active:missing'];
@@ -104,7 +102,6 @@ let buildStu3SearchQuery = (args) => {
 
   if (_lastUpdated){
     query = dateQB(_lastUpdated, 'meta.lastUpdated');
-    // console.log(query)
   }
 
   if (active) {
@@ -186,7 +183,6 @@ let buildStu3SearchQuery = (args) => {
 
   if (general_practitioner) {
     let queryBuilder = referenceQueryBuilder(general_practitioner, 'generalPractitioner.reference');
-    console.log(queryBuilder);
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
     }
@@ -221,7 +217,6 @@ let buildStu3SearchQuery = (args) => {
 
   if (link){
     let queryBuilder = referenceQueryBuilder(link, 'link.other.reference');
-    console.log(queryBuilder);
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
     }
@@ -229,7 +224,6 @@ let buildStu3SearchQuery = (args) => {
 
   if (organization) {
     let queryBuilder = referenceQueryBuilder(organization, 'managingOrganization.reference');
-    console.log(queryBuilder);
     for (let i in queryBuilder) {
       query[i] = queryBuilder[i];
     }
@@ -273,39 +267,31 @@ let buildStu3SearchQuery = (args) => {
   return query;
 };
 
-
 /**
  * @param {*} args
  * @param {*} context
  * @param {*} logger
  */
-module.exports.search = (args) =>
+module.exports.search = (args, req) =>
   new Promise((resolve, reject) => {
+
     logger.info('Patient >>> search');
     let { base_version } = args;
-
     let query = {};
     query = buildStu3SearchQuery(args);
-
-    // 20220921
     const resultOptions = r4ResultParamsBuilder(args, r4PatientSrchParams);
-
-    console.log(Object.keys(args));
     console.log(resultOptions);
-    console.log(query);
+
+    // const test = new R4ResultParamsBuilder(args);
+    // console.log(test.bundle());
+    // console.log(Object.keys(args));
+    // console.log(query);
 
     // Grab an instance of our DB and collection
     let db = globals.get(CLIENT_DB);
     let collection = db.collection(`${COLLECTION.PATIENT}_${base_version}`);
     let Patient = getPatient(base_version);
 
-    // https://devsakaso.com/javascript-flat-flatmap-methods/
-    // https://qiita.com/shuichi0712/items/cf966ad8bae9e610ea32
-    // https://qiita.com/Yametaro/items/17f5a0434afa9b88c3b1
-    // https://maku77.github.io/js/array/concat.html
-    // https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Global_Objects/Set
-    // https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Operators/Conditional_Operator
-    // https://stackoverflow.com/questions/48668232/recursive-function-and-map-for-accessing-elements-in-nested-array
 
     //データを取得する もしクエリストリングに_includeか_revincludeがあった際これを基にinclude,revinclude関数を動かす
     const fetchOrginalDatas = async() => {
@@ -313,21 +299,20 @@ module.exports.search = (args) =>
       return orgDatas.map(item => new Patient(item)); //schema process
     };
 
+    // データ数を取得 _summary=count用 class
     const fetchDatasCount = async() => {
       return {'total': await collection.find(query).count()};
     };
 
-    // データ数を取得 _summary=count用
-    const fetchSortedDatas = async() => {
-      const matchQuery = { $match: {...resultOptions._sort.existChecker, ...query} };
-      console.log(JSON.stringify( resultOptions._filter ));
-
-      const orgDatas = await collection.aggregate([resultOptions._sort.specifySortOrder, matchQuery, resultOptions._filter], resultOptions._sort.caseInsensitive)
-         .limit(resultOptions._count).toArray();
-      return orgDatas.map(item => new Patient(item)); //schema process
-    };
+    // const fetchSortedDatas = async() => {
+    //   const matchQuery = { $match: {...resultOptions._sort.existChecker, ...query} };
+    //   const orgDatas = await collection.aggregate([resultOptions._sort.specifySortOrder, matchQuery, resultOptions._filter], resultOptions._sort.caseInsensitive)
+    //      .limit(resultOptions._count).toArray();
+    //   return orgDatas.map(item => new Patient(item)); //schema process
+    // };
 
     // fetchOrginalDatasで取得したデータを基に、別データを取得
+
     const fetch_includeDatas = async(datas) => {
       //1. queryを基にデータをとってくる
       const originalDatas = datas;
@@ -337,6 +322,7 @@ module.exports.search = (args) =>
       const refTypeParams = r4PatientSrchParams
                             .filter(valueOf => valueOf.fhirtype === nestPath)
                             .reduce((obj, data) => ({...obj, [data.name]: data}), {});
+
 
       //3. クエリストリングの_include値とrefTypeParamsを基に検索用のオブジェクトを作成
       const queryStrsObj = resultOptions._include.map(queryKey => {
@@ -384,50 +370,53 @@ module.exports.search = (args) =>
 
       //2. obj.revinclude値を基にオブジェクトを作成
       const searchKeys = resultOptions._revinclude.map(item => {
-        //三項演算子 => [if文 ? whenIsTrue : whenIsFalse] https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Operators/Conditional_Operator
         const targetCollection = item[0];
         const targetKey = item[1];
         return {targetCollection, targetKey};
       });
 
-      //3. originalDatasからidを取り出して加工する
-      const shapingOrgDatas = originalDatas.map(valueOf => { return `Patient/${valueOf.id}`; });
+      try {
+        //3. originalDatasからidを取り出して加工する
+        const shapingOrgDatas = originalDatas.map(valueOf => { return `Patient/${valueOf.id}`; });
+        //4. クエリを作成してmongoDBで検索
+        const fetchDatasFromMongo = searchKeys.map(async(valueOf) => {
+          const revincludeCollection = `${valueOf.targetCollection}_${base_version}`;
+          const path = `${valueOf.targetKey}.${nestPath}`;
+          const mongoQuery = { $or: shapingOrgDatas.map(id => { return { [path]: id }; }) };
+          return await db.collection(revincludeCollection).find( mongoQuery ).toArray();
+        });
 
-      //4. クエリを作成してmongoDBで検索
-      const fetchDatasFromMongo = searchKeys.map(async(valueOf) => {
+        //4. 結合
+        const result = await Promise.all(fetchDatasFromMongo);
+        return [].concat(...result.map(item => item));
+      } catch {
+        return [];
+      }
 
-        const revincludeCollection = `${valueOf.targetCollection}_${base_version}`;
-        const path = `${valueOf.targetKey}.${nestPath}`;
-        const mongoQuery = { $or: shapingOrgDatas.map(id => { return { [path]: id }; }) };
-
-        return await db.collection(revincludeCollection).find( mongoQuery ).toArray();
-      });
-
-      //4. 結合
-      const result = await Promise.all(fetchDatasFromMongo);
-      return [].concat(...result.map(item => item));
     };
 
-    // データを返す
     const search = async() => {
-
       try {
-        if (resultOptions._filter === 'count'){
+
+        if (resultOptions._filter === 'count') {
           return await fetchDatasCount();
-        } else {
-          const arr = [];
-          const orgDatas = await fetchOrginalDatas();
-          // const orgDatas = resultOptions._sort ? await fetchSortedDatas() : await fetchOrginalDatas()
-          arr.push(orgDatas);
-          if (resultOptions._include) { arr.push(await fetch_includeDatas(orgDatas)); }
-          if (resultOptions._revinclude) { arr.push(await fetch_revincludeDatas(orgDatas)); }
-          return arr.flat(); // Eg: [[item1], [item2], [item3]] => [item1, item2, item3]
         }
-      } catch (err){
+        // else
+        const orgDatas = await fetchOrginalDatas();
+        // const orgDatas = resultOptions._sort ? await fetchSortedDatas() : await fetchOrginalDatas();
+        const arr = [];
+        arr.push(orgDatas);
+        if (resultOptions._include) { arr.push(await fetch_includeDatas(orgDatas)); }
+        if (resultOptions._revinclude) { arr.push(await fetch_revincludeDatas(orgDatas)); }
+        return arr.flat();
+
+      } catch (err) {
         reject(new Error(err));
       }
     };
+
     resolve(search());
+
   });
 
 module.exports.searchById = (args) =>
@@ -537,7 +526,7 @@ module.exports.update = (args, { req }) =>
         let foundPatient = new Patient(data);
         let meta = foundPatient.meta;
         meta.versionId = `${parseInt(foundPatient.meta.versionId) + 1}`;
-        meta.lastUpdated = jst,
+        meta.lastUpdated = jst;
         patient.meta = meta;
       } else {
         let Meta = getMeta(base_version);
@@ -554,7 +543,7 @@ module.exports.update = (args, { req }) =>
 
       // Insert/update our patient record
       if ('id' in doc){
-        collection.replaceOne({ id: id }, doc , { upsert: true }, (err2, res) => { //overwrite
+        collection.replaceOne({ id: id }, doc, { upsert: true }, (err2, res) => { //overwrite
           if (err2) {
             logger.error('Error with Patient.update: ', err2);
             return reject(err2);

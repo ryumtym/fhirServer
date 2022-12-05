@@ -17,8 +17,10 @@ const { getUuid } = require('../../utils/uid.util');
 const { capitalizeInitial, } = require('../../utils/functions.util');
 
 const logger = require('@asymmetrik/node-fhir-server-core').loggers.get();
+
 const fhirParams = require('@asymmetrik/node-fhir-server-core').getSearchParameters;
 const r4PatientSrchParams = fhirParams.getSearchParameters('Patient', '4_0_0');
+const refTypeSrchableParams = r4PatientSrchParams.filter(valueOf => valueOf.fhirtype === 'reference').reduce((obj, data) => ({...obj, [data.name]: data}), {});
 
 const {
   stringQueryBuilder,
@@ -30,7 +32,7 @@ const {
   dateQB,
 } = require('../../utils/querybuilder.util');
 
-const { r4ResultParamsBuilder, R4ResultParamsBuilder} = require('../../utils/searchResultParams.util');
+const { R4ResultParamsBuilder} = require('../../utils/searchResultParams.util');
 // const { forEach } = require('../../globals');
 // const { link } = require('@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/patient.parameters');
 
@@ -279,12 +281,13 @@ module.exports.search = (args, req) =>
     let { base_version } = args;
     let query = {};
     query = buildStu3SearchQuery(args);
-    const resultOptions = r4ResultParamsBuilder(args, r4PatientSrchParams);
-    console.log(resultOptions);
+    // const resultOptions = r4ResultParamsBuilder(args, refTypeSrchableParams);
 
-    // const test = new R4ResultParamsBuilder(args);
-    // console.log(test.bundle());
+    const r4ResultParamsBuilder = new R4ResultParamsBuilder(args, refTypeSrchableParams);
+    const resultOptions = r4ResultParamsBuilder.bundle();
     // console.log(Object.keys(args));
+    // console.log(resultOptions);
+    // console.log(args);
     // console.log(query);
 
     // Grab an instance of our DB and collection
@@ -318,25 +321,9 @@ module.exports.search = (args, req) =>
       const originalDatas = datas;
       const nestPath = 'reference';
 
-      //2. fhirのPatientパラメーターからtype="reference"のオブジェクトを抽出してデータ構造を {name: {...}, name: {...}, ...}に整形して吐き出し
-      const refTypeParams = r4PatientSrchParams
-                            .filter(valueOf => valueOf.fhirtype === nestPath)
-                            .reduce((obj, data) => ({...obj, [data.name]: data}), {});
-
-
-      //3. クエリストリングの_include値とrefTypeParamsを基に検索用のオブジェクトを作成
-      const queryStrsObj = resultOptions._include.map(queryKey => {
-        const isSingle = queryKey.length === 1; //配列の数が1かどうか
-        const pathBuilder = (dataName) => dataName?.xpath?.split('.').slice(1).join('.'); // Eg: Patient.link.other => link.other
-        // const pathBuilder = (dataName) => String(dataName?.xpath?.match(/\w+[^.]+/g).slice(1).join('.')); // same process as above
-
-        return isSingle ?
-          { 'targetPath': pathBuilder(refTypeParams[queryKey]), 'targetCollection': capitalizeInitial(queryKey[0]) } :
-          { 'targetPath': pathBuilder(refTypeParams[queryKey[0]]), 'targetCollection': capitalizeInitial(queryKey[1]) };
-      });
 
       // 4. originalDatasからqueryStrsObjに当てはまるものを取得
-      const datasOfFitTheQueryStrs = queryStrsObj.map(valueOf => {
+      const datasOfFitTheQueryStrs = resultOptions._include.map(valueOf => {
         const findNestedData = (node, pathArr, index = 0) => {
           const path = pathArr[index];
           const entry = node.map(e => e[path]).flat().filter(Boolean);
@@ -368,20 +355,13 @@ module.exports.search = (args, req) =>
       const nestPath = 'reference';
       const originalDatas = datas;
 
-      //2. obj.revinclude値を基にオブジェクトを作成
-      const searchKeys = resultOptions._revinclude.map(item => {
-        const targetCollection = item[0];
-        const targetKey = item[1];
-        return {targetCollection, targetKey};
-      });
-
       try {
         //3. originalDatasからidを取り出して加工する
         const shapingOrgDatas = originalDatas.map(valueOf => { return `Patient/${valueOf.id}`; });
         //4. クエリを作成してmongoDBで検索
-        const fetchDatasFromMongo = searchKeys.map(async(valueOf) => {
+        const fetchDatasFromMongo = resultOptions._revinclude.map(async(valueOf) => {
           const revincludeCollection = `${valueOf.targetCollection}_${base_version}`;
-          const path = `${valueOf.targetKey}.${nestPath}`;
+          const path = `${valueOf.targetPath}.${nestPath}`;
           const mongoQuery = { $or: shapingOrgDatas.map(id => { return { [path]: id }; }) };
           return await db.collection(revincludeCollection).find( mongoQuery ).toArray();
         });

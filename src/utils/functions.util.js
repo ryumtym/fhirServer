@@ -8,6 +8,20 @@ const capitalizeInitial = (sentence) => {
 	return sentence.charAt(0).toUpperCase() + sentence.slice(1).toLowerCase();
 };
 
+/**
+ * @name splitter
+ * @description splitに失敗した際nullを返す
+ * @param {string} str 渡す文字列
+ * @param {string} delimited 区切りたい文字
+*/
+const splitter = (str, delimited) => {
+	try {
+		return str.split(delimited);
+	} catch {
+		return null;
+	}
+  };
+
 // return bundleBuilder(getUuid(orgDatas+req.req.url) , moment.utc().format('YYYY-MM-DDTHH:mm:ssZ'), req.req.url, orgDatas)
 const bundleBuilder = (id, currentTime, selfUrl, datas) =>{
 	return {
@@ -42,5 +56,6 @@ const bundleEntryBuilder = (url, resource, srchType) => {
 module.exports = {
     capitalizeInitial,
 	bundleBuilder,
-	bundleEntryBuilder
+	bundleEntryBuilder,
+	splitter
 };

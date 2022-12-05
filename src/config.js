@@ -1,7 +1,5 @@
 const { VERSIONS } = require('@asymmetrik/node-fhir-server-core').constants;
 const env = require('var');
-let generateCapabilityStatement = require('./capability.js').generateStatements; // require the statement generator file
-
 
 /**
  * @name mongoConfig

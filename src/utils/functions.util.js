@@ -54,8 +54,8 @@ const bundleEntryBuilder = (url, resource, srchType) => {
 };
 
 module.exports = {
-    capitalizeInitial,
 	bundleBuilder,
 	bundleEntryBuilder,
+    capitalizeInitial,
 	splitter
 };

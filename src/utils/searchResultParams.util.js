@@ -1,9 +1,5 @@
-const {
-  unknownParameterError,
-  cannotCombineParameterError
-} = require('./error.util');
-
-const { capitalizeInitial, splitter} = require('./functions.util');
+const { unknownParameterError, cannotCombineParameterError } = require('./error.util');
+const { capitalizeInitial, splitter } = require('./functions.util');
 
 // _elements,_sumary,_sortに関してはqueryを作成, _elements&_summaryは一緒に使えない事に注意
 // _include,_revincludeは他のリソースを読み取るためのパラメーターを配列として返却
@@ -41,7 +37,6 @@ const { capitalizeInitial, splitter} = require('./functions.util');
 //   return {specifySortOrder, existChecker, caseInsensitive};
 // };
 
-
 class R4ResultParamsBuilder {
 
   constructor(args, srchableParams){
@@ -49,11 +44,11 @@ class R4ResultParamsBuilder {
     this.srchableParams = srchableParams;
   }
 
-  _countParamsBuilder(count) {
+  #_countParamsBuilder(count) {
     return count > 100 ? 100 : count;
   }
 
-  _summaryQueryBuilder(summary, targetType){
+  #_summaryQueryBuilder(summary, targetType){
     const r4SummaryTextValues = ['id', 'meta', 'text'];
     const r4SummaryDataValues = ['text'];
     // test for patient resource
@@ -68,7 +63,7 @@ class R4ResultParamsBuilder {
     if (summary === 'true' ) { return { [targetType]: qB([...r4SummaryTextValues, ...r4SummaryTrueValues], 1)}; }
   }
 
-  _elementsQueryBuilder(elements, targetType){
+  #_elementsQueryBuilder(elements, targetType){
       const validValues = elements.split(',').filter(Boolean);
 
       //1文字目がハイフンでないならvisibleElm 1文字目がハイフンならhiddenElm
@@ -85,7 +80,7 @@ class R4ResultParamsBuilder {
       }
   }
 
-  _includeParamsBuilder(include, srchableParams){
+  #_includeParamsBuilder(include, srchableParams){
   //正規表現: カンマ区切りで分割  eg: Patient:organization -> match1=Patient, match2=organization
   const reg = /\w+[^:]+/g; // /\w+\s*(?:(?:;(?:\s*\w+\s*)?)+)?/
   const commaSplitter = splitter(include, ',');
@@ -109,7 +104,7 @@ class R4ResultParamsBuilder {
   });
   }
 
-  _revincludeParamsBuilder(revinclude){
+  #_revincludeParamsBuilder(revinclude){
     const reg = /\w+[^:]+/g; ///\w+\s*(?:(?:;(?:\s*\w+\s*)?)+)?/
     const commaSplitter = revinclude.split(',');
     const revincludeTarget = commaSplitter.filter(Boolean).map(elm => { return elm.match(reg); });
@@ -121,13 +116,13 @@ class R4ResultParamsBuilder {
 
   bundle(){
     const defaultRecordCount = 10;
+    let { _count, _elements, _include, _revinclude, _summary } = this.args;
     let query = {
       _count: defaultRecordCount,
-      _filter: undefined,
+      _filter: undefined, // _elements or _summary
       _include: undefined,
       _revinclude: undefined
     };
-    let { _count, _elements, _include, _revinclude, _summary } = this.args;
 
     if (_elements && _summary) { throw (cannotCombineParameterError(['_elements', '_summary'])); }
 
@@ -136,11 +131,11 @@ class R4ResultParamsBuilder {
       throw (cannotCombineParameterError('_summary=text with other values for _summary'));
     }
 
-    if (_count) { query._count = this._countParamsBuilder(_count); }
-    if (_summary) { query._filter = this._summaryQueryBuilder(_summary, 'fields'); }
-    if (_elements) { query._filter = this._elementsQueryBuilder(_elements, 'fields'); }
-    if (_include) { query._include = this._includeParamsBuilder(_include, this.srchableParams); }
-    if (_revinclude) { query._revinclude = this._revincludeParamsBuilder(_revinclude); }
+    if (_count) { query._count = this.#_countParamsBuilder(_count); }
+    if (_summary) { query._filter = this.#_summaryQueryBuilder(_summary, 'fields'); }
+    if (_elements) { query._filter = this.#_elementsQueryBuilder(_elements, 'fields'); }
+    if (_include) { query._include = this.#_includeParamsBuilder(_include, this.srchableParams); }
+    if (_revinclude) { query._revinclude = this.#_revincludeParamsBuilder(_revinclude); }
 
     return query;
   }

@@ -10,14 +10,15 @@ const moment = require('moment-timezone');
  let stringQueryBuilder = function (target, modif) {
   let t2 = target.replace(/[\\(\\)\\-\\_\\+\\=\\/\\.]/g, '\\$&');
 
-  const modifSwitch = { //引数2の値で判定してクエリ返す
-    '': function(v){ return { $regex: '^' + v, $options: 'i' }; }, //default 前方一致
-    'contains': function(v){ return { $regex: v, $options: 'i' }; }, //部分一致
-    'exact': function(v){ return { $regex: '^' + v + '$' }; } //完全一致
-    // return { $not: { $regex:"^" + t2 + "$"} }; //除外検索
-  }[modif](t2);
-
-  return modifSwitch;
+  if (modif === ''){
+    return { $regex: '^' + t2, $options: 'i' };
+  }
+  if (modif === 'contains'){
+    return { $regex: t2, $options: 'i' };
+  }
+  if (modif === 'exact'){
+    return { $regex: '^' + t2 + '$' };
+  }
 };
 
 
@@ -126,23 +127,23 @@ let addressQueryBuilder = function (target) {
  * @return {array} ors
  */
 let nameQueryBuilder = function (target, modif) {
-  let split = target.split(/[\s.,]+/);
+  let totalSplit = target.split(/[\s,]+/);
 
   const nameArray = ['name.text', 'name.family', 'name.given', 'name.suffix', 'name.prefix'];
   const queryArray = [];
 
-  for (let i in split) {
-
-    const modifSwitch = { //修飾子で判定してクエリ返す
-        '': function(v){ return { $regex: '^' + v, $options: 'i' }; }, //default 前方一致
-        'contains': function(v){ return { $regex: v, $options: 'i' }; }, //部分一致
-        'exact': function(v){ return { $regex: '^' + v + '$' }; }, //完全一致 ,
-      }[modif](split[i]);
-
+  for (let i in totalSplit) {
     for (let i2 = 0; i2 < nameArray.length; i2++){
-      queryArray.push({[nameArray[i2]]: modifSwitch });
+      if (modif === ''){
+        queryArray.push({[nameArray[i2]]: { $regex: '^' + totalSplit[i], $options: 'i' } });
+      }
+      if (modif === 'contains'){
+        queryArray.push({[nameArray[i2]]: { $regex: totalSplit[i], $options: 'i' } });
+      }
+      if (modif === 'exact'){
+        queryArray.push({[nameArray[i2]]: { $regex: '^' + totalSplit[i] + '$' } });
+      }
     }
-
   }
 
 return [queryArray];
@@ -160,57 +161,60 @@ return [queryArray];
  * @param {string} modifier If it has a modifier, it will move with it.
  * @return {JSON} queryBuilder
  * Using to assign a single variable:
- *      let queryBuilder = tokenQueryBuilder(identifier, 'value', 'identifier');
+ *   let queryBuilder = tokenQueryBuilder(identifier, 'value', 'identifier', '', 'identifier', '');
 		 for (let i in queryBuilder) {
-			 query[i] = queryBuilder[i];
+			ors.push({'$or': queryBuilder[i] });
 		}
-* Use in an or query
-*      query.$or = [tokenQueryBuilder(identifier, 'value', 'identifier'), tokenQueryBuilder(type, 'code', 'type.coding')];
 */
 let tokenQueryBuilder = function (target, type, field, required, dataType, modifier) { //fork元の書き方だと今後ネストが深くなるので書き直したい
-  let queryBuilder = {};
+  // https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Global_Objects/Set/has
+  // https://stackoverflow.com/questions/263965/how-can-i-convert-a-string-to-boolean-in-javascript
+  const queryArray = [];
   let system = '';
   let value = '';
+  const boolSet = new Set(['true', 'false']);
+  let totalSplit = target.split(/[\s,]+/);
 
-  if (dataType === 'boolean'){
-    const v = JSON.parse(target.toLowerCase());
-    if (modifier === 'not' ){ //need change
-      queryBuilder[field] = {$ne: v }; //https://stackoverflow.com/questions/263965/how-can-i-convert-a-string-to-boolean-in-javascript
-    } else {
-      queryBuilder[field] = {$eq: v };
-    }
-  } else if (dataType === 'string') {
-    if (modifier === 'not' ){ //need change
-      queryBuilder[field] = { $ne: target };
-    } else {
-      queryBuilder[field] = { $eq: target };
-    }
-  } else { //code(implicitType)
-    if (modifier === 'text'){
-      queryBuilder[`${field}`] = target;
-    } else {
-      if (target.includes('|')) {
-        [system, value] = target.split('|');
+  for (let i in totalSplit){
 
+    if (dataType === 'string' && modifier === '') {
+      queryArray.push({[field]: { $eq: totalSplit[i]}});
+    }
+    if (dataType === 'string' && modifier === 'not') {
+      queryArray.push({[field]: { $ne: totalSplit[i]}});
+    }
+
+    if (dataType === 'boolean' && boolSet.has(totalSplit[i]) && modifier === ''){
+      queryArray.push({[field]: {$eq: JSON.parse(totalSplit[i].toLowerCase()) }});
+    }
+    if (dataType === 'boolean' && boolSet.has(totalSplit[i]) && modifier === 'not'){
+        queryArray.push({[field]: {$ne: JSON.parse(totalSplit[i].toLowerCase()) }});
+    }
+
+    if (dataType === 'identifier' && modifier === 'text'){
+      queryArray.push({[field]: totalSplit[i] });
+    }
+
+    if (dataType === 'identifier' && ['', 'not'].includes(modifier)) {
+      if (totalSplit[i].includes('|')) {
+        [system, value] = totalSplit[i].split('|');
         if (required) {
           system = required;
         }
       } else {
-        value = target;
+        value = totalSplit[i];
       }
     }
 
-
     if (system) {
-      queryBuilder[`${field}.system`] = system;
+      queryArray.push({[`${field}.system`]: system});
     }
+
     if (value) {
-      queryBuilder[`${field}.${type}`] = value;
+      queryArray.push({[`${field}.${type}`]: value});
     }
   }
-
-  return queryBuilder;
-
+  return [queryArray];
 
 };
 

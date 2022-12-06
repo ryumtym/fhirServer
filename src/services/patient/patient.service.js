@@ -108,14 +108,18 @@ let buildStu3SearchQuery = (args) => {
 
   if (active) {
     let queryBuilder = tokenQueryBuilder(active, '', 'active', '', 'boolean', '');
+    // ors.push({'$or': queryBuilder });
+
     for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
+      ors.push({'$or': queryBuilder[i] });
+      // query[i] = queryBuilder[i];
     }
     // query.active =  {$eq: JSON.parse(active.toLowerCase())};
   } else if (activeNot){
     let queryBuilder = tokenQueryBuilder(activeNot, '', 'active', '', 'boolean', 'not');
     for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
+      ors.push({'$or': queryBuilder[i] });
+      // query[i] = queryBuilder[i];
     }
     // query.active =  {$ne: JSON.parse(activeNot.toLowerCase())}
   } else if (activeMissing){ //https://www.mongodb.com/community/forums/t/query-performance-with-null-vs-exists/108103/3
@@ -129,8 +133,6 @@ let buildStu3SearchQuery = (args) => {
       ors.push({'$or': queryBuilder[i] });
     }
   }
-
-
 
   if (addressCity) {
     query['address.city'] = stringQueryBuilder(addressCity, '');
@@ -151,12 +153,14 @@ let buildStu3SearchQuery = (args) => {
   if (deceased) {
     let queryBuilder = tokenQueryBuilder(deceased, '', 'deceased', '', 'boolean', '');
     for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
+      ors.push({'$or': queryBuilder[i] });
+      // query[i] = queryBuilder[i];
     }
   } else if (deceasedNot){
     let queryBuilder = tokenQueryBuilder(deceasedNot, '', 'deceased', '', 'boolean', 'not');
     for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
+      ors.push({'$or': queryBuilder[i] });
+      // query[i] = queryBuilder[i];
     }
   }
 
@@ -172,13 +176,13 @@ let buildStu3SearchQuery = (args) => {
   if (gender) {
     let queryBuilder = tokenQueryBuilder(gender, '', 'gender', '', 'string', '');
     for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
+      ors.push({'$or': queryBuilder[i] });
     }
     // query.gender = { $regex: "^" + gender, $options: "i"}
   } else if (genderNot){
     let queryBuilder = tokenQueryBuilder(genderNot, '', 'gender', '', 'string', 'not');
     for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
+      ors.push({'$or': queryBuilder[i] });
     }
     // query.gender = { $not: { $regex: "^" + genderNot, $options: "i"}}
   }
@@ -200,19 +204,19 @@ let buildStu3SearchQuery = (args) => {
   }
 
   if (identifier) {
-    let queryBuilder = tokenQueryBuilder(identifier, 'value', 'identifier', '');
+    let queryBuilder = tokenQueryBuilder(identifier, 'value', 'identifier', '', 'identifier', '');
     for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
+      ors.push({'$or': queryBuilder[i] });
     }
   } else if (identifierNot){
-    let queryBuilder = tokenQueryBuilder(identifierNot, 'value', 'identifier', '', '', 'not');
+    let queryBuilder = tokenQueryBuilder(identifierNot, 'value', 'identifier', '', 'identifier', 'not');
     for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
+      ors.push({'$or': queryBuilder[i] });
     }
   } else if (identifierText){
-    let queryBuilder = tokenQueryBuilder(identifierText, 'value', 'identifier.type.text', '', '', 'text');
+    let queryBuilder = tokenQueryBuilder(identifierText, 'value', 'identifier.type.text', '', 'identifier', 'text');
     for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
+      ors.push({'$or': queryBuilder[i] });
     }
   }
 
@@ -257,7 +261,8 @@ let buildStu3SearchQuery = (args) => {
   if (telecom){
     let queryBuilder = tokenQueryBuilder(telecom, 'value', 'telecom', '');
     for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
+      ors.push({'$or': queryBuilder[i] });
+      // query[i] = queryBuilder[i];
     }
   }
 
@@ -265,7 +270,6 @@ let buildStu3SearchQuery = (args) => {
   if (ors.length !== 0) {
     query.$and = ors;
   }
-
   return query;
 };
 
@@ -288,7 +292,7 @@ module.exports.search = (args, req) =>
     // console.log(Object.keys(args));
     // console.log(resultOptions);
     // console.log(args);
-    // console.log(query);
+    console.log(query);
 
     // Grab an instance of our DB and collection
     let db = globals.get(CLIENT_DB);
@@ -393,6 +397,7 @@ module.exports.search = (args, req) =>
       } catch (err) {
         reject(new Error(err));
       }
+
     };
 
     resolve(search());

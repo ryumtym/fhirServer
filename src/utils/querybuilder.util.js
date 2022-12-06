@@ -104,7 +104,7 @@ let dateQB = function (target, path) {
  */
 let addressQueryBuilder = function (target) {
   // Tokenize the input as mush as possible
-  let totalSplit = target.split(/[\s,]+/);
+  let totalSplit = target.split(/[\s,]+/).filter(Boolean);
   const addressArray = ['address.line', 'address.city', 'address.district', 'address.state', 'address.postalCode', 'address.country'];
   const queryArray = [];
 
@@ -127,7 +127,7 @@ let addressQueryBuilder = function (target) {
  * @return {array} ors
  */
 let nameQueryBuilder = function (target, modif) {
-  let totalSplit = target.split(/[\s,]+/);
+  let totalSplit = target.split(/[\s,]+/).filter(Boolean);
 
   const nameArray = ['name.text', 'name.family', 'name.given', 'name.suffix', 'name.prefix'];
   const queryArray = [];
@@ -173,7 +173,7 @@ let tokenQueryBuilder = function (target, type, field, required, dataType, modif
   let system = '';
   let value = '';
   const boolSet = new Set(['true', 'false']);
-  let totalSplit = target.split(/[\s,]+/);
+  let totalSplit = target.split(/[\s,]+/).filter(Boolean);
 
   for (let i in totalSplit){
 

@@ -64,8 +64,8 @@ class R4ResultParamsBuilder {
   }
 
   #_elementsQueryBuilder(elements, targetType){
-      const validValues = elements.split(',').filter(Boolean);
-
+      // const validValues = elements.split(/,/).filter(Boolean);
+      let validValues = Array.isArray(elements) ? elements : [elements];
       //1文字目がハイフンでないならvisibleElm 1文字目がハイフンならhiddenElm
       const hasHyphen = /^([-])([a-zA-Z0-9.,$;]+$)/;
       const visibleElm = validValues.filter(value => !hasHyphen.exec(value) );

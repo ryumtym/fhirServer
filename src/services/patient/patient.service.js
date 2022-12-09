@@ -26,8 +26,7 @@ const {
   stringQueryBuilder,
   tokenQueryBuilder,
   referenceQueryBuilder,
-  addressQueryBuilder,
-  nameQueryBuilder,
+  addressAndNameQueryBuilder,
   dateQueryBuilder,
   dateQB,
 } = require('../../utils/querybuilder.util');
@@ -55,6 +54,8 @@ let buildStu3SearchQuery = (args) => {
   let activeMissing = args['active:missing'];
 
   let address = args['address'];
+  let addressContains = args['address:contains'];
+  let addressExact = args['address:exact'];
 
   let addressCity = args['address-city'];
   let addressCityContains = args['address-city:contains'];
@@ -107,30 +108,41 @@ let buildStu3SearchQuery = (args) => {
   }
 
   if (active) {
-    let queryBuilder = tokenQueryBuilder(active, '', 'active', '', 'boolean', '');
-    // ors.push({'$or': queryBuilder });
-
+    let queryBuilder = tokenQueryBuilder(active, '', 'active', '', 'boolean');
     for (let i in queryBuilder) {
-      ors.push({'$or': queryBuilder[i] });
-      // query[i] = queryBuilder[i];
+      ors.push(queryBuilder[i]);
     }
-    // query.active =  {$eq: JSON.parse(active.toLowerCase())};
-  } else if (activeNot){
+  }
+  if (activeNot){
     let queryBuilder = tokenQueryBuilder(activeNot, '', 'active', '', 'boolean', 'not');
     for (let i in queryBuilder) {
-      ors.push({'$or': queryBuilder[i] });
+      ors.push(queryBuilder[i]);
       // query[i] = queryBuilder[i];
     }
-    // query.active =  {$ne: JSON.parse(activeNot.toLowerCase())}
-  } else if (activeMissing){ //https://www.mongodb.com/community/forums/t/query-performance-with-null-vs-exists/108103/3
+  }
+  if (activeMissing){ //https://www.mongodb.com/community/forums/t/query-performance-with-null-vs-exists/108103/3
     query = { active: null };
   }
 
   if (address){
-    let queryBuilder = addressQueryBuilder(address);
+    let queryBuilder = addressAndNameQueryBuilder(address, 'address', '');
     for (let i in queryBuilder) {
       // query[i] = queryBuilder[i];
-      ors.push({'$or': queryBuilder[i] });
+      ors.push(queryBuilder[i]);
+    }
+  }
+  if (addressContains){
+    let queryBuilder = addressAndNameQueryBuilder(addressContains, 'address', 'contains');
+    for (let i in queryBuilder) {
+      // ors.push({'$or': queryBuilder[i] });
+      ors.push(queryBuilder[i]);
+    }
+  }
+  if (addressExact){
+    let queryBuilder = addressAndNameQueryBuilder(addressExact, 'address', 'exact');
+    for (let i in queryBuilder) {
+      // ors.push({'$or': queryBuilder[i] });
+      ors.push(queryBuilder[i]);
     }
   }
 
@@ -151,15 +163,15 @@ let buildStu3SearchQuery = (args) => {
   }
 
   if (deceased) {
-    let queryBuilder = tokenQueryBuilder(deceased, '', 'deceased', '', 'boolean', '');
+    let queryBuilder = tokenQueryBuilder(deceased, '', 'deceased', '', 'boolean');
     for (let i in queryBuilder) {
-      ors.push({'$or': queryBuilder[i] });
+      ors.push(queryBuilder[i]);
       // query[i] = queryBuilder[i];
     }
   } else if (deceasedNot){
     let queryBuilder = tokenQueryBuilder(deceasedNot, '', 'deceased', '', 'boolean', 'not');
     for (let i in queryBuilder) {
-      ors.push({'$or': queryBuilder[i] });
+      ors.push(queryBuilder[i]);
       // query[i] = queryBuilder[i];
     }
   }
@@ -174,17 +186,16 @@ let buildStu3SearchQuery = (args) => {
   }
 
   if (gender) {
-    let queryBuilder = tokenQueryBuilder(gender, '', 'gender', '', 'string', '');
+    let queryBuilder = tokenQueryBuilder(gender, '', 'gender', '', 'string');
     for (let i in queryBuilder) {
-      ors.push({'$or': queryBuilder[i] });
+      ors.push(queryBuilder[i] );
     }
-    // query.gender = { $regex: "^" + gender, $options: "i"}
-  } else if (genderNot){
+  }
+  if (genderNot){
     let queryBuilder = tokenQueryBuilder(genderNot, '', 'gender', '', 'string', 'not');
     for (let i in queryBuilder) {
-      ors.push({'$or': queryBuilder[i] });
+      ors.push(queryBuilder[i] );
     }
-    // query.gender = { $not: { $regex: "^" + genderNot, $options: "i"}}
   }
 
   if (general_practitioner) {
@@ -206,17 +217,19 @@ let buildStu3SearchQuery = (args) => {
   if (identifier) {
     let queryBuilder = tokenQueryBuilder(identifier, 'value', 'identifier', '', 'identifier', '');
     for (let i in queryBuilder) {
-      ors.push({'$or': queryBuilder[i] });
+      ors.push(queryBuilder[i]);
     }
-  } else if (identifierNot){
+  }
+  if (identifierNot){
     let queryBuilder = tokenQueryBuilder(identifierNot, 'value', 'identifier', '', 'identifier', 'not');
     for (let i in queryBuilder) {
-      ors.push({'$or': queryBuilder[i] });
+      ors.push({'$nor': queryBuilder[i] });
     }
-  } else if (identifierText){
+  }
+  if (identifierText){
     let queryBuilder = tokenQueryBuilder(identifierText, 'value', 'identifier.type.text', '', 'identifier', 'text');
     for (let i in queryBuilder) {
-      ors.push({'$or': queryBuilder[i] });
+      ors.push(queryBuilder[i]);
     }
   }
 
@@ -238,22 +251,21 @@ let buildStu3SearchQuery = (args) => {
 
 
   if (name) {
-    let queryBuilder = nameQueryBuilder(name, '');
+    let queryBuilder = addressAndNameQueryBuilder(name, 'name', '');
     for (let i in queryBuilder) {
-      // query[i] = queryBuilder[i];
-      ors.push({'$or': queryBuilder[i] });
+      ors.push(queryBuilder[i]);
     }
-  } else if (nameContains) {
-    let queryBuilder = nameQueryBuilder(nameContains, 'contains');
+  }
+  if (nameContains) {
+    let queryBuilder = addressAndNameQueryBuilder(nameContains, 'name', 'contains');
     for (let i in queryBuilder) {
-      // query[i] = queryBuilder[i];
-      ors.push({'$or': queryBuilder[i] });
+      ors.push(queryBuilder[i]);
     }
-  } else if (nameExact) {
-    let queryBuilder = nameQueryBuilder(nameExact, 'exact');
+  }
+  if (nameExact) {
+    let queryBuilder = addressAndNameQueryBuilder(nameExact, 'name', 'exact');
     for (let i in queryBuilder) {
-      // query[i] = queryBuilder[i];
-      ors.push({'$or': queryBuilder[i] });
+      ors.push(queryBuilder[i]);
     }
   }
 
@@ -261,15 +273,16 @@ let buildStu3SearchQuery = (args) => {
   if (telecom){
     let queryBuilder = tokenQueryBuilder(telecom, 'value', 'telecom', '');
     for (let i in queryBuilder) {
-      ors.push({'$or': queryBuilder[i] });
+      ors.push(queryBuilder[i]);
       // query[i] = queryBuilder[i];
     }
   }
-
   // https://stackoverflow.com/questions/5150061/mongodb-multiple-or-operations
   if (ors.length !== 0) {
-    query.$and = ors;
+    query.$and = ors.flat();
   }
+  console.log(JSON.stringify(query));
+
   return query;
 };
 
@@ -291,8 +304,8 @@ module.exports.search = (args, req) =>
     const resultOptions = r4ResultParamsBuilder.bundle();
     // console.log(Object.keys(args));
     // console.log(resultOptions);
-    // console.log(args);
-    console.log(query);
+    console.log(args);
+    // console.log(query);
 
     // Grab an instance of our DB and collection
     let db = globals.get(CLIENT_DB);

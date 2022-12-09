@@ -1,27 +1,5 @@
 const moment = require('moment-timezone');
-
-/**
- * @name stringQueryBuilder
- * @description builds mongo default query for string inputs, no modifiers
- * @param {string} target what we are querying for
- * @param {string} modif modifier contains->部分一致, exact->完全一致, それ以外->前方一致
- * @return a mongo regex query
- */
- let stringQueryBuilder = function (target, modif) {
-  let t2 = target.replace(/[\\(\\)\\-\\_\\+\\=\\/\\.]/g, '\\$&');
-
-  if (modif === ''){
-    return { $regex: '^' + t2, $options: 'i' };
-  }
-  if (modif === 'contains'){
-    return { $regex: t2, $options: 'i' };
-  }
-  if (modif === 'exact'){
-    return { $regex: '^' + t2 + '$' };
-  }
-};
-
-
+const { unknownParameterError, cannotCombineParameterError } = require('./error.util');
 
 /**
  * @name dateQB
@@ -94,62 +72,81 @@ let dateQB = function (target, path) {
 };
 
 
-
 /**
- * @name addressQueryBuilder
- * @description brute force method of matching addresses. Splits the input and checks to see if every piece matches to
- * at least 1 part of the address field using regexs. Ignores case
- * @param {string} target
- * @return {array} ors
- */
-let addressQueryBuilder = function (target) {
-  // Tokenize the input as mush as possible
-  let totalSplit = target.split(/[\s,]+/).filter(Boolean);
-  const addressArray = ['address.line', 'address.city', 'address.district', 'address.state', 'address.postalCode', 'address.country'];
-  const queryArray = [];
-
-  for (let i in totalSplit) {
-    for (let i2 = 0; i2 < addressArray.length; i2++){
-      queryArray.push({[addressArray[i2]]: { $regex: '^' + totalSplit[i], $options: 'i' } });
-    }
-  }
-
-  // return {"$or" : queryArray}
-  return [queryArray];
-};
-
-/**
- * @name nameQueryBuilder
+ * @name addressAndNameQueryBuilder
  * @description brute force method of matching human names. Splits the input and checks to see if every piece matches to
  * at least 1 part of the name field using regexs. Ignores case
  * @param {string} target
+ * @param {string} type 'address' or 'name'
  * @param {string} modif https://www.hl7.org/fhir/search.html#string
  * @return {array} ors
  */
-let nameQueryBuilder = function (target, modif) {
-  let totalSplit = target.split(/[\s,]+/).filter(Boolean);
+let addressAndNameQueryBuilder = function (target, type, modifier) {
 
-  const nameArray = ['name.text', 'name.family', 'name.given', 'name.suffix', 'name.prefix'];
-  const queryArray = [];
+  // let queryTerms = target.split(/,/).filter(Boolean);
+  let queryTerms = Array.isArray(target) ? target : [target];
+  const nameFields = ['name.text', 'name.family', 'name.given', 'name.suffix', 'name.prefix'];
+  const addressFields = ['address.line', 'address.city', 'address.district', 'address.state', 'address.postalCode', 'address.country'];
+  const fields = type === 'name' ? nameFields : addressFields;
+  const andQueryConditions = [];
+  const orQueryConditions = [];
+  const query = [];
 
-  for (let i in totalSplit) {
-    for (let i2 = 0; i2 < nameArray.length; i2++){
-      if (modif === ''){
-        queryArray.push({[nameArray[i2]]: { $regex: '^' + totalSplit[i], $options: 'i' } });
-      }
-      if (modif === 'contains'){
-        queryArray.push({[nameArray[i2]]: { $regex: totalSplit[i], $options: 'i' } });
-      }
-      if (modif === 'exact'){
-        queryArray.push({[nameArray[i2]]: { $regex: '^' + totalSplit[i] + '$' } });
-      }
+  // modifierを基にmongoQueryを作成する
+  const constructQuery = (str, modif) => {
+    if (modif === '') { return { $regex: '^' + str, $options: 'i' }; }
+    if (modif === 'contains') { return { $regex: str, $options: 'i' }; }
+    if (modif === 'exact') { return { $regex: '^' + str + '$' }; }
+  };
+
+  // queryを配列に格納する
+  const addRegexQuery = (arr, fieldTerm, str, modif) => {
+    for (let key of fieldTerm) {
+      arr.push({[key]: constructQuery(str, modif)});
     }
-  }
+  };
 
-return [queryArray];
+  const queryString = queryTerms.map((str) => ({ value: str }));
+
+  queryString.map(obj => {
+    const splitTerms = obj.value.split(/,/);
+    splitTerms.map(term => {
+      if (splitTerms.length === 1) {
+        addRegexQuery(andQueryConditions, fields, term, modifier);
+      } else {
+        addRegexQuery(orQueryConditions, fields, term, modifier);
+      }
+    });
+  });
+
+  if (andQueryConditions.length !== 0){ query.push({'$or': andQueryConditions}); }
+  if (orQueryConditions.length !== 0){ query.push({'$or': orQueryConditions}); }
+
+  return query;
 
 };
 
+/**
+ * @name stringQueryBuilder
+ * @description builds mongo default query for string inputs, no modifiers
+ * @param {string} target what we are querying for
+ * @param {string} modif modifier contains->部分一致, exact->完全一致, それ以外->前方一致
+ * @return a mongo regex query
+ */
+ let stringQueryBuilder = function (target, modif) {
+  const t2 = target.replace(/[\\(\\)\\-\\_\\+\\=\\/\\.]/g, '\\$&');
+  let regex = '^' + t2;
+  let options = 'i';
+
+  if (modif === 'contains') {
+    regex = t2;
+  } else if (modif === 'exact') {
+    regex += '$';
+    options = '';
+  }
+  return { $regex: regex, $options: options };
+
+};
 
 /**
  * @name tokenQueryBuilder
@@ -160,61 +157,92 @@ return [queryArray];
  * @param {string} detaType token's detaType https://www.hl7.org/fhir/search.html#token
  * @param {string} modifier If it has a modifier, it will move with it.
  * @return {JSON} queryBuilder
- * Using to assign a single variable:
- *   let queryBuilder = tokenQueryBuilder(identifier, 'value', 'identifier', '', 'identifier', '');
-		 for (let i in queryBuilder) {
-			ors.push({'$or': queryBuilder[i] });
-		}
 */
 let tokenQueryBuilder = function (target, type, field, required, dataType, modifier) { //fork元の書き方だと今後ネストが深くなるので書き直したい
   // https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Global_Objects/Set/has
   // https://stackoverflow.com/questions/263965/how-can-i-convert-a-string-to-boolean-in-javascript
-  const queryArray = [];
+  const operator = (modifier === 'not') ? '$nor' : '$or';
+  const queryTerms = Array.isArray(target) ? target : [target];
+  const resultQuery = [];
+
+  const andQueryConditions = [];
+  const orQueryConditions = [];
   let system = '';
   let value = '';
-  const boolSet = new Set(['true', 'false']);
-  let totalSplit = target.split(/[\s,]+/).filter(Boolean);
 
-  for (let i in totalSplit){
+  // 渡された値(target)をカンマで分割し配列化し、もし配列数が1ならandQueryConditionsに、配列数が1以外なら orQueryConditionsに格納
+  (function() {
+    queryTerms.map(obj => {
+      const splitTerms = obj.split(/,/);
+      splitTerms.map(term => {
+        return splitTerms.length === 1 ? andQueryConditions.push({[field]: term }) : orQueryConditions.push({[field]: term });
+      });
+    });
+  })();
 
-    if (dataType === 'string' && modifier === '') {
-      queryArray.push({[field]: { $eq: totalSplit[i]}});
-    }
-    if (dataType === 'string' && modifier === 'not') {
-      queryArray.push({[field]: { $ne: totalSplit[i]}});
-    }
+  // console.log(queryString);
+  // console.log(andQueryConditions);
+  // console.log(orQueryConditions);
+  const createQueryObject = (queryOperator, source) => { return {[queryOperator]: source}; };
 
-    if (dataType === 'boolean' && boolSet.has(totalSplit[i]) && modifier === ''){
-      queryArray.push({[field]: {$eq: JSON.parse(totalSplit[i].toLowerCase()) }});
+  if (dataType === 'string') {
+    if (andQueryConditions.length !== 0){ resultQuery.push( createQueryObject(['$and'], andQueryConditions) ); }
+    if (orQueryConditions.length !== 0) { resultQuery.push( createQueryObject([operator], orQueryConditions) ); }
+  } else if (dataType === 'boolean') {
+    try {
+      const convertToBoolean = (arr) => arr.map(obj => { return { [field]: JSON.parse(obj[field].toLowerCase())}; });
+      if (andQueryConditions.length !== 0){ resultQuery.push( createQueryObject([operator], convertToBoolean(andQueryConditions)) ); }
+      if (orQueryConditions.length !== 0) { resultQuery.push( createQueryObject([operator], convertToBoolean(orQueryConditions)) ); }
+    } catch {
+      throw unknownParameterError(field, target, 'boolean type');
     }
-    if (dataType === 'boolean' && boolSet.has(totalSplit[i]) && modifier === 'not'){
-        queryArray.push({[field]: {$ne: JSON.parse(totalSplit[i].toLowerCase()) }});
-    }
+  } else if (dataType === 'identifier' && modifier === 'text'){
+    resultQuery.push({[field]: target });
+  }
 
-    if (dataType === 'identifier' && modifier === 'text'){
-      queryArray.push({[field]: totalSplit[i] });
+  if (dataType !== 'identifier' && type === 'value'){
+    if (orQueryConditions.length !== 0){
+      resultQuery.push( createQueryObject([operator], orQueryConditions.map(item => ({ [`${field}.${type}`]: item[field] })) ) );
     }
-
-    if (dataType === 'identifier' && ['', 'not'].includes(modifier)) {
-      if (totalSplit[i].includes('|')) {
-        [system, value] = totalSplit[i].split('|');
-        if (required) {
-          system = required;
-        }
-      } else {
-        value = totalSplit[i];
-      }
-    }
-
-    if (system) {
-      queryArray.push({[`${field}.system`]: system});
-    }
-
-    if (value) {
-      queryArray.push({[`${field}.${type}`]: value});
+    if (andQueryConditions.length !== 0){
+      resultQuery.push( createQueryObject(['$and'], andQueryConditions.map(item => ({ [`${field}.${type}`]: item[field] })) ) );
     }
   }
-  return [queryArray];
+  // if (system) {
+  //   resultQuery.push({[`${fieldTerms}.system`]: system});
+  // }
+
+  // if (value) {
+  //   if (andQueryConditions.length !== 0){ resultQuery.push({ ['$and']: [{'identifier.telecom': 'sms'}] }); }
+  //   if (orQueryConditions.length !== 0){ resultQuery.push({ [operator]: orQueryConditions }); }
+  // }
+
+
+  // if (dataType === 'identifier' && modifier === 'text'){
+  //   query.push({[field]: target });
+  // } else {
+  //   const a = (arr) => {
+  //     arr.map(elm =>{
+  //       if (elm[fieldTerms].includes('|')){
+  //         [system, value] = elm[fieldTerms].split('|');
+  //       } else {
+  //         value = elm[fieldTerms];
+  //       }
+  //     });
+  //   };
+  //   a(andQueryConditions);
+  //   a(orQueryConditions);
+  // }
+  // if (system) {
+  //   query.push({[`${fieldTerms}.system`]: system});
+  // }
+  // if (value) {
+  //   if (andQueryConditions.length !== 0){ query.push({ ['$and']: andQueryConditions }); }
+  //   if (orQueryConditions.length !== 0){ query.push({ [operator]: orQueryConditions }); }
+  // }
+
+
+  return resultQuery;
 
 };
 
@@ -793,8 +821,7 @@ module.exports = {
   stringQueryBuilder,
   tokenQueryBuilder,
   referenceQueryBuilder,
-  addressQueryBuilder,
-  nameQueryBuilder,
+  addressAndNameQueryBuilder,
   numberQueryBuilder,
   quantityQueryBuilder,
   compositeQueryBuilder,

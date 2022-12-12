@@ -108,7 +108,7 @@ let buildStu3SearchQuery = (args) => {
   }
 
   if (active) {
-    let queryBuilder = tokenQueryBuilder(active, '', 'active', '', 'boolean');
+    let queryBuilder = tokenQueryBuilder(active, '', 'active', '', 'boolean', '');
     for (let i in queryBuilder) {
       ors.push(queryBuilder[i]);
     }
@@ -186,7 +186,7 @@ let buildStu3SearchQuery = (args) => {
   }
 
   if (gender) {
-    let queryBuilder = tokenQueryBuilder(gender, '', 'gender', '', 'string');
+    let queryBuilder = tokenQueryBuilder(gender, '', 'gender', '', 'string', '');
     for (let i in queryBuilder) {
       ors.push(queryBuilder[i] );
     }

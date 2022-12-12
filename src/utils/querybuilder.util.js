@@ -162,6 +162,7 @@ let tokenQueryBuilder = function (target, type, field, required, dataType, modif
   // https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Global_Objects/Set/has
   // https://stackoverflow.com/questions/263965/how-can-i-convert-a-string-to-boolean-in-javascript
   const operator = (modifier === 'not') ? '$nor' : '$or';
+  const boolOperator = (modifier === 'not') ? '$ne' : '$eq';
   const queryTerms = Array.isArray(target) ? target : [target];
   const resultQuery = [];
 
@@ -174,40 +175,67 @@ let tokenQueryBuilder = function (target, type, field, required, dataType, modif
   (function() {
     queryTerms.map(obj => {
       const splitTerms = obj.split(/,/);
+      const queryValueBuilder = (args) => dataType === 'string' ? {[field]: args } : {[field]: JSON.parse(args.toLowerCase())};
       splitTerms.map(term => {
-        return splitTerms.length === 1 ? andQueryConditions.push({[field]: term }) : orQueryConditions.push({[field]: term });
+        try {
+          return splitTerms.length === 1 ? andQueryConditions.push(queryValueBuilder(term)) : orQueryConditions.push(queryValueBuilder(term));
+        } catch {
+          throw unknownParameterError(field, target, 'boolean type');
+        }
       });
     });
   })();
 
   // console.log(queryString);
   // console.log(andQueryConditions);
-  // console.log(orQueryConditions);
-  const createQueryObject = (queryOperator, source) => { return {[queryOperator]: source}; };
+  console.log(orQueryConditions);
 
-  if (dataType === 'string') {
-    if (andQueryConditions.length !== 0){ resultQuery.push( createQueryObject(['$and'], andQueryConditions) ); }
-    if (orQueryConditions.length !== 0) { resultQuery.push( createQueryObject([operator], orQueryConditions) ); }
-  } else if (dataType === 'boolean') {
-    try {
-      const convertToBoolean = (arr) => arr.map(obj => { return { [field]: JSON.parse(obj[field].toLowerCase())}; });
-      if (andQueryConditions.length !== 0){ resultQuery.push( createQueryObject([operator], convertToBoolean(andQueryConditions)) ); }
-      if (orQueryConditions.length !== 0) { resultQuery.push( createQueryObject([operator], convertToBoolean(orQueryConditions)) ); }
-    } catch {
-      throw unknownParameterError(field, target, 'boolean type');
-    }
-  } else if (dataType === 'identifier' && modifier === 'text'){
-    resultQuery.push({[field]: target });
-  }
+  const createQueryObject = (operator, source, modif) => {
+    const query = (args) => {return {[args]: source };};
+    let queryObject;
+    if (operator === 'and' && modif === '') { queryObject = query(['$and']); }
+    if (operator === 'and' && modif === 'not') { queryObject = query(['$nor']); }
+    if (operator === 'or' && modif === '') { queryObject = query(['$or']); }
+    if (operator === 'or' && modif === 'not') { queryObject = query(['$nor']); }
+    return queryObject;
+  };
 
-  if (dataType !== 'identifier' && type === 'value'){
-    if (orQueryConditions.length !== 0){
-      resultQuery.push( createQueryObject([operator], orQueryConditions.map(item => ({ [`${field}.${type}`]: item[field] })) ) );
-    }
-    if (andQueryConditions.length !== 0){
-      resultQuery.push( createQueryObject(['$and'], andQueryConditions.map(item => ({ [`${field}.${type}`]: item[field] })) ) );
-    }
-  }
+  if (andQueryConditions.length !== 0){ resultQuery.push( createQueryObject('and', andQueryConditions, modifier) ); }
+  if (orQueryConditions.length !== 0) { resultQuery.push( createQueryObject('or', orQueryConditions, modifier) ); }
+
+
+
+  // if (dataType === 'string') {
+  //   if (andQueryConditions.length !== 0){ resultQuery.push( createQueryObject(['$and'], andQueryConditions) ); }
+  //   if (orQueryConditions.length !== 0) { resultQuery.push( createQueryObject([operator], orQueryConditions) ); }
+  // } else if (dataType === 'boolean') {
+  //   try {
+  //     const convertToBoolean = (modif, arr) => arr.map(obj => {
+  //       const boolOper = modif === '' ? '$eq' : '$ne';
+  //       return {[boolOper]: JSON.parse(obj[field].toLowerCase())};
+  //     });
+  //     console.log(convertToBoolean(modifier, andQueryConditions));
+  //     if (andQueryConditions.length !== 0){ resultQuery.push( {[field]: convertToBoolean(modifier, andQueryConditions)} ); }
+  //     if (orQueryConditions.length !== 0) { resultQuery.push( {[field]: convertToBoolean(modifier, orQueryConditions)} ); }
+  //   } catch {
+  //     throw unknownParameterError(field, target, 'boolean type');
+  //   }
+  // }
+  // else if (dataType === 'identifier' && modifier === 'text'){
+  //   resultQuery.push({[field]: target });
+  // }
+
+  // if (dataType !== 'identifier' && type === 'value'){
+  //   if (orQueryConditions.length !== 0){
+  //     resultQuery.push( createQueryObject([operator], orQueryConditions.map(item => ({ [`${field}.${type}`]: item[field] })) ) );
+  //   }
+  //   if (andQueryConditions.length !== 0){
+  //     resultQuery.push( createQueryObject(['$and'], andQueryConditions.map(item => ({ [`${field}.${type}`]: item[field] })) ) );
+  //   }
+  // }
+
+
+
   // if (system) {
   //   resultQuery.push({[`${fieldTerms}.system`]: system});
   // }

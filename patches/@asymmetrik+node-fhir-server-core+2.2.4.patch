@@ -59,7 +59,7 @@ index 8886a1b..3cd881b 100644
 \ No newline at end of file
 diff --git a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/result.parameters.js b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/result.parameters.js
 new file mode 100644
-index 0000000..93461e2
+index 0000000..a79a5b8
 --- /dev/null
 +++ b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/result.parameters.js
 @@ -0,0 +1,49 @@
@@ -88,7 +88,7 @@ index 0000000..93461e2
 +    fhirtype: 'string',
 +    xpath: '',
 +    definition: '',
-+    description: ''
++    description: 'Request that only a specific set of elements be returned for resources'
 +  },
 +  _include: {
 +    type: 'string',
@@ -190,7 +190,7 @@ index db87e28..4baf8fb 100644
      test('should throw an error if given an invalid parameter name', () => {
        expect(() => {
 diff --git a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/sanitize.utils.js b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/sanitize.utils.js
-index 3e6f85c..4a0bd9d 100644
+index 3e6f85c..57d0b66 100644
 --- a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/sanitize.utils.js
 +++ b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/sanitize.utils.js
 @@ -5,6 +5,7 @@ const errors = require('./error.utils');
@@ -225,7 +225,7 @@ index 3e6f85c..4a0bd9d 100644
        result = typeof value === 'string';
        break;
  
-@@ -108,6 +114,47 @@ let findMatchWithName = (name = '', params = {}) => {
+@@ -108,6 +114,45 @@ let findMatchWithName = (name = '', params = {}) => {
      value: params[match]
    };
  };
@@ -249,9 +249,7 @@ index 3e6f85c..4a0bd9d 100644
 +      newArr[keyObj[i]] = valueObj[i]
 +    }
 +  }
-+  console.log(newArr)
 +  return newArr
-+
 +}
 +
 +/**
@@ -273,7 +271,7 @@ index 3e6f85c..4a0bd9d 100644
  /**
   * @function sanitizeMiddleware
   * @summary Sanitize the arguments by removing extra arguments, escaping some, and
-@@ -119,15 +166,19 @@ let findMatchWithName = (name = '', params = {}) => {
+@@ -119,15 +164,18 @@ let findMatchWithName = (name = '', params = {}) => {
   * @param {boolean} required - Should we throw if this argument is present and invalid, default is false
   */
  
@@ -283,7 +281,6 @@ index 3e6f85c..4a0bd9d 100644
      let currentArgs = parseParams(req);
      let cleanArgs = {}; // filter only ones with version or no version
  
-+    // let searchParametersArr = ["_INCLUDE", "_REVINCLUDE", "_sort", "_COUNT", "_SUMMARY", "_elements", "_CONTAINED", "_CONTAINEDTYPED"];
 +    let searchParametersArr = [];
 +
      let version_specific_params = config.filter(param => {
@@ -294,7 +291,7 @@ index 3e6f85c..4a0bd9d 100644
  
      for (let i = 0; i < version_specific_params.length; i++) {
        let conf = version_specific_params[i];
-@@ -136,12 +187,14 @@ let sanitizeMiddleware = function (config) {
+@@ -136,12 +184,14 @@ let sanitizeMiddleware = function (config) {
          value
        } = findMatchWithName(conf.name, currentArgs); // If the argument is required but not present
  
@@ -310,7 +307,7 @@ index 3e6f85c..4a0bd9d 100644
        try {
          if (value) {
            cleanArgs[field] = parseValue(conf.type, value);
-@@ -150,12 +203,21 @@ let sanitizeMiddleware = function (config) {
+@@ -150,14 +200,24 @@ let sanitizeMiddleware = function (config) {
          return next(errors.invalidParameter(conf.name + ' is invalid', req.params.base_version));
        } // If we have the arg and the type is wrong, throw invalid arg
  
@@ -321,7 +318,7 @@ index 3e6f85c..4a0bd9d 100644
      } // Save the cleaned arguments on the request for later use, we must only use these later on
  
 +    // console.log("n-f-c/dist/server-utils/sanitize.utill/sanitizeMiddleware/cleanArgs" + JSON.stringify(cleanArgs))
-+    // console.log("n-f-c/dist/server-utils/sanitize.utill/sanitizeMiddleware/currentArgs" + JSON.stringify(currentArgs))
++    console.log("n-f-c/dist/server-utils/sanitize.utill/sanitizeMiddleware/currentArgs" + JSON.stringify(currentArgs))
 +    // console.log(searchParametersArr)
 +    if(searchParameterChecker(modifiersChecker(currentArgs), searchParametersArr)){
 +      return next(errors.invalidParameter(
@@ -331,5 +328,9 @@ index 3e6f85c..4a0bd9d 100644
 +
 +
  
-     req.sanitized_args = cleanArgs;
+-    req.sanitized_args = cleanArgs;
++    // req.sanitized_args = cleanArgs;
++    req.sanitized_args = currentArgs;
      next();
+   };
+ };

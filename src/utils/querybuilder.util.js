@@ -88,8 +88,8 @@ let addressAndNameQueryBuilder = function (target, type, modifier) {
   const nameFields = ['name.text', 'name.family', 'name.given', 'name.suffix', 'name.prefix'];
   const addressFields = ['address.line', 'address.city', 'address.district', 'address.state', 'address.postalCode', 'address.country'];
   const fields = type === 'name' ? nameFields : addressFields;
-  const andQueryConditions = [];
-  const orQueryConditions = [];
+  const andQueryBundle = [];
+  const orQueryBundle = [];
   const query = [];
 
   // modifierを基にmongoQueryを作成する
@@ -111,16 +111,16 @@ let addressAndNameQueryBuilder = function (target, type, modifier) {
   queryString.map(obj => {
     const splitTerms = obj.value.split(/,/);
     splitTerms.map(term => {
-      if (splitTerms.length === 1) {
-        addRegexQuery(andQueryConditions, fields, term, modifier);
+      if (splitTerms.length) {
+        addRegexQuery(andQueryBundle, fields, term, modifier);
       } else {
-        addRegexQuery(orQueryConditions, fields, term, modifier);
+        addRegexQuery(orQueryBundle, fields, term, modifier);
       }
     });
   });
 
-  if (andQueryConditions.length !== 0){ query.push({'$or': andQueryConditions}); }
-  if (orQueryConditions.length !== 0){ query.push({'$or': orQueryConditions}); }
+  if (andQueryBundle.length){ query.push({'$or': andQueryBundle}); }
+  if (orQueryBundle.length ){ query.push({'$or': orQueryBundle}); }
 
   return query;
 
@@ -158,117 +158,59 @@ let addressAndNameQueryBuilder = function (target, type, modifier) {
  * @param {string} modifier If it has a modifier, it will move with it.
  * @return {JSON} queryBuilder
 */
-let tokenQueryBuilder = function (target, type, field, required, dataType, modifier) { //fork元の書き方だと今後ネストが深くなるので書き直したい
+let tokenQueryBuilder = function (target, type, field, required, dataType, modifier) {
   // https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Global_Objects/Set/has
   // https://stackoverflow.com/questions/263965/how-can-i-convert-a-string-to-boolean-in-javascript
-  const operator = (modifier === 'not') ? '$nor' : '$or';
-  const boolOperator = (modifier === 'not') ? '$ne' : '$eq';
-  const queryTerms = Array.isArray(target) ? target : [target];
+  const queryTerms = [].concat(target);
   const resultQuery = [];
 
-  const andQueryConditions = [];
-  const orQueryConditions = [];
-  let system = '';
-  let value = '';
+  const andQueryBundle = [];
+  const orQueryBundle = [];
 
-  // 渡された値(target)をカンマで分割し配列化し、もし配列数が1ならandQueryConditionsに、配列数が1以外なら orQueryConditionsに格納
-  (function() {
-    queryTerms.map(obj => {
-      const splitTerms = obj.split(/,/);
-      const queryValueBuilder = (args) => dataType === 'string' ? {[field]: args } : {[field]: JSON.parse(args.toLowerCase())};
-      splitTerms.map(term => {
-        try {
-          return splitTerms.length === 1 ? andQueryConditions.push(queryValueBuilder(term)) : orQueryConditions.push(queryValueBuilder(term));
-        } catch {
-          throw unknownParameterError(field, target, 'boolean type');
-        }
-      });
-    });
-  })();
+  // 引数で渡された型に応じてmondoDBで使用するクエリのvalueを作成する
+  const buildQueryValues = (v) => {
+    if (dataType === 'boolean'){
+      // 文字列を真偽値に置き換え、もしできなかったらerror処理
+      try {
+        return {[field]: JSON.parse(v.toLowerCase())};
+      } catch {
+        throw unknownParameterError(field, target, 'boolean type');
+      }
+    } else if (dataType === 'string' || dataType === 'identifier' && modifier === 'text'){
+      return {[field]: v };
+    } else {
+      // "|" が存在する場合は、v の値を "|" の左右に分ける
+      // 存在しない場合は、system は null にする
+      const arr = [];
+      const pipeSeparator = v.indexOf('|');
+      const system = pipeSeparator ? v.substring(0, pipeSeparator) : null;
+      const value = pipeSeparator ? v.substring(pipeSeparator + 1) : v;
 
-  // console.log(queryString);
-  // console.log(andQueryConditions);
-  console.log(orQueryConditions);
-
-  const createQueryObject = (operator, source, modif) => {
-    const query = (args) => {return {[args]: source };};
-    let queryObject;
-    if (operator === 'and' && modif === '') { queryObject = query(['$and']); }
-    if (operator === 'and' && modif === 'not') { queryObject = query(['$nor']); }
-    if (operator === 'or' && modif === '') { queryObject = query(['$or']); }
-    if (operator === 'or' && modif === 'not') { queryObject = query(['$nor']); }
-    return queryObject;
+      if (system){ arr.push({ [`${field}.system` ]: system}); }
+      if (value) { arr.push({ [`${field}.${type}`]: value }); }
+      return arr;
+    }
   };
 
-  if (andQueryConditions.length !== 0){ resultQuery.push( createQueryObject('and', andQueryConditions, modifier) ); }
-  if (orQueryConditions.length !== 0) { resultQuery.push( createQueryObject('or', orQueryConditions, modifier) ); }
+  // 渡された値(target)をもとに、もし配列数が1ならandQueryBundleに、配列数が1以外なら orQueryBundleに格納
+  queryTerms.map(obj => {
+    const splitTerms = obj.split(/,/);
+    splitTerms.map(term => splitTerms.length
+      ? andQueryBundle.push(buildQueryValues(term))
+      : orQueryBundle.push(buildQueryValues(term)) );
+  });
 
+  // console.log(andQueryBundle);
+  // console.log(orQueryBundle);
 
+// modifに応じてクエリのキーに$andをつけたりする
+  const createQuery = (operator, source, modif) => {
+    if (modif === '' || modif === 'text') { return {[operator]: source}; }
+    if (modif === 'not') { return {['$nor']: source}; }
+  };
 
-  // if (dataType === 'string') {
-  //   if (andQueryConditions.length !== 0){ resultQuery.push( createQueryObject(['$and'], andQueryConditions) ); }
-  //   if (orQueryConditions.length !== 0) { resultQuery.push( createQueryObject([operator], orQueryConditions) ); }
-  // } else if (dataType === 'boolean') {
-  //   try {
-  //     const convertToBoolean = (modif, arr) => arr.map(obj => {
-  //       const boolOper = modif === '' ? '$eq' : '$ne';
-  //       return {[boolOper]: JSON.parse(obj[field].toLowerCase())};
-  //     });
-  //     console.log(convertToBoolean(modifier, andQueryConditions));
-  //     if (andQueryConditions.length !== 0){ resultQuery.push( {[field]: convertToBoolean(modifier, andQueryConditions)} ); }
-  //     if (orQueryConditions.length !== 0) { resultQuery.push( {[field]: convertToBoolean(modifier, orQueryConditions)} ); }
-  //   } catch {
-  //     throw unknownParameterError(field, target, 'boolean type');
-  //   }
-  // }
-  // else if (dataType === 'identifier' && modifier === 'text'){
-  //   resultQuery.push({[field]: target });
-  // }
-
-  // if (dataType !== 'identifier' && type === 'value'){
-  //   if (orQueryConditions.length !== 0){
-  //     resultQuery.push( createQueryObject([operator], orQueryConditions.map(item => ({ [`${field}.${type}`]: item[field] })) ) );
-  //   }
-  //   if (andQueryConditions.length !== 0){
-  //     resultQuery.push( createQueryObject(['$and'], andQueryConditions.map(item => ({ [`${field}.${type}`]: item[field] })) ) );
-  //   }
-  // }
-
-
-
-  // if (system) {
-  //   resultQuery.push({[`${fieldTerms}.system`]: system});
-  // }
-
-  // if (value) {
-  //   if (andQueryConditions.length !== 0){ resultQuery.push({ ['$and']: [{'identifier.telecom': 'sms'}] }); }
-  //   if (orQueryConditions.length !== 0){ resultQuery.push({ [operator]: orQueryConditions }); }
-  // }
-
-
-  // if (dataType === 'identifier' && modifier === 'text'){
-  //   query.push({[field]: target });
-  // } else {
-  //   const a = (arr) => {
-  //     arr.map(elm =>{
-  //       if (elm[fieldTerms].includes('|')){
-  //         [system, value] = elm[fieldTerms].split('|');
-  //       } else {
-  //         value = elm[fieldTerms];
-  //       }
-  //     });
-  //   };
-  //   a(andQueryConditions);
-  //   a(orQueryConditions);
-  // }
-  // if (system) {
-  //   query.push({[`${fieldTerms}.system`]: system});
-  // }
-  // if (value) {
-  //   if (andQueryConditions.length !== 0){ query.push({ ['$and']: andQueryConditions }); }
-  //   if (orQueryConditions.length !== 0){ query.push({ [operator]: orQueryConditions }); }
-  // }
-
+  if (andQueryBundle?.length){ resultQuery.push( createQuery(['$and'], andQueryBundle.flat(), modifier) ); }
+  if (orQueryBundle?.length) { resultQuery.push( createQuery(['$or'], orQueryBundle.flat(), modifier) ); }
 
   return resultQuery;
 

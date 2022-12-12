@@ -271,7 +271,7 @@ let buildStu3SearchQuery = (args) => {
 
 
   if (telecom){
-    let queryBuilder = tokenQueryBuilder(telecom, 'value', 'telecom', '');
+    let queryBuilder = tokenQueryBuilder(telecom, 'value', 'telecom', '', '', '');
     for (let i in queryBuilder) {
       ors.push(queryBuilder[i]);
       // query[i] = queryBuilder[i];

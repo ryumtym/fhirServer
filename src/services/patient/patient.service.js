@@ -166,13 +166,13 @@ let buildStu3SearchQuery = (args) => {
     let queryBuilder = tokenQueryBuilder(deceased, '', 'deceased', '', 'boolean');
     for (let i in queryBuilder) {
       ors.push(queryBuilder[i]);
-      // query[i] = queryBuilder[i];
     }
-  } else if (deceasedNot){
+  }
+
+  if (deceasedNot){
     let queryBuilder = tokenQueryBuilder(deceasedNot, '', 'deceased', '', 'boolean', 'not');
     for (let i in queryBuilder) {
       ors.push(queryBuilder[i]);
-      // query[i] = queryBuilder[i];
     }
   }
 
@@ -223,7 +223,7 @@ let buildStu3SearchQuery = (args) => {
   if (identifierNot){
     let queryBuilder = tokenQueryBuilder(identifierNot, 'value', 'identifier', '', 'identifier', 'not');
     for (let i in queryBuilder) {
-      ors.push({'$nor': queryBuilder[i] });
+      ors.push(queryBuilder[i]);
     }
   }
   if (identifierText){
@@ -339,7 +339,7 @@ module.exports.search = (args, req) =>
       const nestPath = 'reference';
 
 
-      // 4. originalDatasからqueryStrsObjに当てはまるものを取得
+      // 2. originalDatasからinclude queryに当てはまるものを取得
       const datasOfFitTheQueryStrs = resultOptions._include.map(valueOf => {
         const findNestedData = (node, pathArr, index = 0) => {
           const path = pathArr[index];
@@ -351,18 +351,18 @@ module.exports.search = (args, req) =>
         return findNestedData(originalDatas, valueOf.targetPath.split('.'));
       }).flat().map(item => typeof (item) === 'object' ? item[nestPath] : item );
 
-      // 5. datasOfFitTheQueryStrsを整形(重複を削除、ネストを取り除く)
+      // 3. datasOfFitTheQueryStrsを整形(重複を削除、ネストを取り除く)
       const toDedupeAndFlattenDatas = [...new Set(datasOfFitTheQueryStrs.flat().map(item => item))];
 
-      // 6. toDeduplicateAndFlattenの値を基にDB検索/取得
+      // 4. toDeduplicateAndFlattenの値を基にDB検索/取得
       const fetchDatasFromMongo = toDedupeAndFlattenDatas.map(async(item) =>{
         const [refcollection, refid] = item.split('/');
-        const Schema = resolveSchema(base_version, capitalizeInitial(refcollection));
+        const RefSchema = resolveSchema(base_version, capitalizeInitial(refcollection));
         const includedata = await db.collection( `${capitalizeInitial(refcollection)}_${base_version}` ).find( { id: refid } ).toArray();
-        return includedata.map(includeitem => new Schema(includeitem));
+        return includedata.map(includeitem => new RefSchema(includeitem));
       });
 
-      // 7. 値返却
+      // 5. 値返却
       const result = await Promise.all(fetchDatasFromMongo);
       return [].concat(...result.map(item => item));
     };

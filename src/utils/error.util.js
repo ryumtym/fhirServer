@@ -9,10 +9,10 @@ const cannotCombineParameterError = (params) => {
  * @name unknownParameterValue
  * @description If an unknown parameter value is obtained, err is returned.
  * @Example throw (unknownParameterValue('_sort', nmae, ['birthDate','name'])
+ * @returns Unknown {param} parameter value {value}. Valid values for this search are: {srchableParams}
  */
 const unknownParameterError = (param, value, srchableParams) => {
   return errors.invalidParameter(`Unknown ${param} parameter value [${value}]. Valid values for this search are: [${srchableParams}]`, '4_0_0');
-  // return new Error(`Unknown ${param} parameter value [${value}]. Valid values for this search are: [${srchableParams}]`);
 };
 
 module.exports = {

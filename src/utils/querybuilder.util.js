@@ -1,5 +1,5 @@
 const moment = require('moment-timezone');
-const { unknownParameterError, cannotCombineParameterError } = require('./error.util');
+const { unknownParameterError } = require('./error.util');
 
 /**
  * @name dateQB
@@ -83,46 +83,59 @@ let dateQB = function (target, path) {
  */
 let addressAndNameQueryBuilder = function (target, type, modifier) {
 
-  // let queryTerms = target.split(/,/).filter(Boolean);
-  let queryTerms = Array.isArray(target) ? target : [target];
+  // targetを配列化
+  // 括弧「(」「)」、ハイフン「-」、アンダースコア「_」、プラス「+」、イコール「=」、スラッシュ「/」、ドット「.」を全てエスケープする
+  const targetToArray = [].concat(target);
+  const targetTerms = targetToArray.map(elm => elm.replace(/[\\(\\)\\-\\_\\+\\=\\/\\.]/g, '\\$&')); // 引数targetを配列化
+
   const nameFields = ['name.text', 'name.family', 'name.given', 'name.suffix', 'name.prefix'];
   const addressFields = ['address.line', 'address.city', 'address.district', 'address.state', 'address.postalCode', 'address.country'];
   const fields = type === 'name' ? nameFields : addressFields;
+
   const andQueryBundle = [];
   const orQueryBundle = [];
-  const query = [];
+  const resultQuery = [];
 
-  // modifierを基にmongoQueryを作成する
-  const constructQuery = (str, modif) => {
-    if (modif === '') { return { $regex: '^' + str, $options: 'i' }; }
-    if (modif === 'contains') { return { $regex: str, $options: 'i' }; }
-    if (modif === 'exact') { return { $regex: '^' + str + '$' }; }
+
+/**
+ * @name buildPatternMatchQuery
+ * @description  modifierに応じて、前方一致、部分一致、完全一致検索のためのmongoクエリを作成する
+ * @abstract https://www.mongodb.com/docs/manual/reference/operator/query/regex/
+ * @param {string} value 検索値
+ * @param {string} modif '' => 前方一致, contains => 部分一致, exact => 完全一致
+*/
+  const buildPatternMatchQuery = (value, modif) => {
+    if (modif === '') { return { $regex: '^' + value, $options: 'i' }; }
+    if (modif === 'contains') { return { $regex: value, $options: 'i' }; }
+    if (modif === 'exact') { return { $regex: '^' + value + '$' }; }
   };
 
-  // queryを配列に格納する
-  const addRegexQuery = (arr, fieldTerm, str, modif) => {
-    for (let key of fieldTerm) {
-      arr.push({[key]: constructQuery(str, modif)});
-    }
+ /**
+ * @name bundleQueries
+ * @description  searchTermを基にmongoクエリを複数作成し、insertionArrayにまとめる
+ * @param {array} insertionArray 挿入先の配列
+ * @param {array} searchTerm 挿入元の配列、nameFieldsかaddressFieldsを使用
+ * @param {string} modif buildPatternMatchQuery関数を呼ぶ際に使用
+ */
+  const bundleQueries = (insertionArray, searchTerm, value, modif) => {
+    searchTerm.map(field => {
+      insertionArray.push({[field]: buildPatternMatchQuery(value, modif)});
+    });
   };
 
-  const queryString = queryTerms.map((str) => ({ value: str }));
-
-  queryString.map(obj => {
-    const splitTerms = obj.value.split(/,/);
+  // 渡された値(target)をもとに、もし配列数が1ならandQueryBundleに、配列数が1以外なら orQueryBundleに格納
+  targetTerms.map(value => {
+    const splitTerms = value.split(/,/);
     splitTerms.map(term => {
-      if (splitTerms.length) {
-        addRegexQuery(andQueryBundle, fields, term, modifier);
-      } else {
-        addRegexQuery(orQueryBundle, fields, term, modifier);
-      }
+      const arrayToInsert = splitTerms.length === 1 ? andQueryBundle : orQueryBundle;
+      bundleQueries(arrayToInsert, fields, term, modifier);
     });
   });
 
-  if (andQueryBundle.length){ query.push({'$or': andQueryBundle}); }
-  if (orQueryBundle.length ){ query.push({'$or': orQueryBundle}); }
+  if (andQueryBundle.length){ resultQuery.push({'$or': andQueryBundle}); }
+  if (orQueryBundle.length ){ resultQuery.push({'$or': orQueryBundle }); }
 
-  return query;
+  return resultQuery;
 
 };
 
@@ -157,15 +170,15 @@ let addressAndNameQueryBuilder = function (target, type, modifier) {
  * @param {string} detaType token's detaType https://www.hl7.org/fhir/search.html#token
  * @param {string} modifier If it has a modifier, it will move with it.
  * @return {JSON} queryBuilder
+ *  // https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Global_Objects/Set/has
+    // https://stackoverflow.com/questions/263965/how-can-i-convert-a-string-to-boolean-in-javascript
 */
 let tokenQueryBuilder = function (target, type, field, required, dataType, modifier) {
-  // https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Global_Objects/Set/has
-  // https://stackoverflow.com/questions/263965/how-can-i-convert-a-string-to-boolean-in-javascript
-  const queryTerms = [].concat(target);
-  const resultQuery = [];
+  const targetTerms = [].concat(target); // 引数targetを配列化
 
   const andQueryBundle = [];
   const orQueryBundle = [];
+  const resultQuery = [];
 
   // 引数で渡された型に応じてmondoDBで使用するクエリのvalueを作成する
   const buildQueryValues = (v) => {
@@ -193,17 +206,21 @@ let tokenQueryBuilder = function (target, type, field, required, dataType, modif
   };
 
   // 渡された値(target)をもとに、もし配列数が1ならandQueryBundleに、配列数が1以外なら orQueryBundleに格納
-  queryTerms.map(obj => {
+  targetTerms.map(obj => {
     const splitTerms = obj.split(/,/);
-    splitTerms.map(term => splitTerms.length
-      ? andQueryBundle.push(buildQueryValues(term))
-      : orQueryBundle.push(buildQueryValues(term)) );
-  });
+    splitTerms.map(term => {
+      const arrayToInsert = splitTerms.length === 1 ? andQueryBundle : orQueryBundle;
+      arrayToInsert.push(buildQueryValues(term));
+    })
+    ;});
 
   // console.log(andQueryBundle);
   // console.log(orQueryBundle);
 
-// modifに応じてクエリのキーに$andをつけたりする
+  /*
+    modif == '' or text => $andか$orを使用してクエリ作成
+    modif == not        => $norを使用してクエリ作成
+  */
   const createQuery = (operator, source, modif) => {
     if (modif === '' || modif === 'text') { return {[operator]: source}; }
     if (modif === 'not') { return {['$nor']: source}; }

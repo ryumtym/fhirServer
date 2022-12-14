@@ -97,27 +97,27 @@ let addressAndNameQueryBuilder = function (target, type, modifier) {
   const resultQuery = [];
 
 
-/**
- * @name buildPatternMatchQuery
- * @description  modifierに応じて、前方一致、部分一致、完全一致検索のためのmongoクエリを作成する
- * @abstract https://www.mongodb.com/docs/manual/reference/operator/query/regex/
- * @param {string} value 検索値
- * @param {string} modif '' => 前方一致, contains => 部分一致, exact => 完全一致
-*/
+  /**
+   * @name buildPatternMatchQuery
+   * @description  modifierに応じて、前方一致、部分一致、完全一致検索のためのmongoクエリを作成する
+   * @abstract https://www.mongodb.com/docs/manual/reference/operator/query/regex/
+   * @param {string} value 検索値
+   * @param {string} modif '' => 前方一致, contains => 部分一致, exact => 完全一致
+  */
   const buildPatternMatchQuery = (value, modif) => {
     if (modif === '') { return { $regex: '^' + value, $options: 'i' }; }
     if (modif === 'contains') { return { $regex: value, $options: 'i' }; }
     if (modif === 'exact') { return { $regex: '^' + value + '$' }; }
   };
 
- /**
- * @name bundleQueries
- * @description  searchTermを基にmongoクエリを複数作成し、insertionArrayにまとめる
- * @param {array} insertionArray 挿入先の配列
- * @param {array} searchTerm 挿入元の配列、nameFieldsかaddressFieldsを使用
- * @param {string} modif buildPatternMatchQuery関数を呼ぶ際に使用
- */
-  const bundleQueries = (insertionArray, searchTerm, value, modif) => {
+  /**
+   * @name buildQueryBundle
+   * @description  searchTermを基にmongoクエリを複数作成し、insertionArrayにまとめる
+   * @param {array} insertionArray 挿入先の配列
+   * @param {array} searchTerm 挿入元の配列、nameFieldsかaddressFieldsを使用
+   * @param {string} modif buildPatternMatchQuery関数を呼ぶ際に使用
+   */
+  const buildQueryBundle = (insertionArray, searchTerm, value, modif) => {
     searchTerm.map(field => {
       insertionArray.push({[field]: buildPatternMatchQuery(value, modif)});
     });
@@ -128,7 +128,7 @@ let addressAndNameQueryBuilder = function (target, type, modifier) {
     const splitTerms = value.split(/,/);
     splitTerms.map(term => {
       const arrayToInsert = splitTerms.length === 1 ? andQueryBundle : orQueryBundle;
-      bundleQueries(arrayToInsert, fields, term, modifier);
+      buildQueryBundle(arrayToInsert, fields, term, modifier);
     });
   });
 
@@ -146,19 +146,40 @@ let addressAndNameQueryBuilder = function (target, type, modifier) {
  * @param {string} modif modifier contains->部分一致, exact->完全一致, それ以外->前方一致
  * @return a mongo regex query
  */
- let stringQueryBuilder = function (target, modif) {
-  const t2 = target.replace(/[\\(\\)\\-\\_\\+\\=\\/\\.]/g, '\\$&');
-  let regex = '^' + t2;
-  let options = 'i';
+ let stringQueryBuilder = function (target, field, modifier) {
+  const targetToArray = [].concat(target);
+  const targetTerms = targetToArray.map(elm => elm.replace(/[\\(\\)\\-\\_\\+\\=\\/\\.]/g, '\\$&')); // 引数targetを配列化
 
-  if (modif === 'contains') {
-    regex = t2;
-  } else if (modif === 'exact') {
-    regex += '$';
-    options = '';
-  }
-  return { $regex: regex, $options: options };
+  const andQueryBundle = [];
+  const orQueryBundle = [];
+  const resultQuery = [];
 
+  /**
+   * @name buildPatternMatchQuery
+   * @description  modifierに応じて、前方一致、部分一致、完全一致検索のためのmongoクエリを作成する
+   * @abstract https://www.mongodb.com/docs/manual/reference/operator/query/regex/
+   * @param {string} value 検索値
+   * @param {string} modif '' => 前方一致, contains => 部分一致, exact => 完全一致
+  */
+  const buildPatternMatchQuery = (value, modif) => {
+    if (modif === '') { return { $regex: '^' + value, $options: 'i' }; }
+    if (modif === 'contains') { return { $regex: value, $options: 'i' }; }
+    if (modif === 'exact') { return { $regex: '^' + value + '$' }; }
+  };
+
+  // 渡された値(target)をもとに、もし配列数が1ならandQueryBundleに、配列数が1以外なら orQueryBundleに格納
+  targetTerms.map(value => {
+    const splitTerms = value.split(/,/);
+    splitTerms.map(term => {
+      const arrayToInsert = splitTerms.length === 1 ? andQueryBundle : orQueryBundle;
+      arrayToInsert.push({ [field]: buildPatternMatchQuery(term, modifier)});
+    });
+  });
+
+  if (andQueryBundle.length){ resultQuery.push({'$or': andQueryBundle}); }
+  if (orQueryBundle.length ){ resultQuery.push({'$or': orQueryBundle }); }
+
+  return resultQuery;
 };
 
 /**
@@ -407,7 +428,8 @@ let getDateFromNum = function (days) {
 //It's important to make sure formatting is right, dont forget a leading 0 when dealing with single digit times.
 let dateQueryBuilder = function (date, type, path) { //fork元のコードがかなりやばいので1から書き直したい
   let regex = /^(\D{2})?(\d{4})(-\d{2})?(-\d{2})?(?:(T\d{2}:\d{2})(:\d{2})?)?(Z|(\+|-|\s)(\d{2}):(\d{2}))?$/;
-  let match = date.match(regex);
+  const dateTerms = [].concat(date);
+  let match = dateTerms.map(elm => elm.match(regex));
   let str = '';
   let toRet = [];
   let pArr = []; //will have other possibilities such as just year, just year and month, etc
@@ -415,13 +437,7 @@ let dateQueryBuilder = function (date, type, path) { //fork元のコードがか
 
   let dateArr = [];
   const arr = {};
-  const regex2 = ',';
-  console.log(match);
-  if (date.match(regex2)){
-    dateArr = date.split(',');
-  } else {
-    dateArr = [date];
-  }
+  dateArr = dateTerms;
   // console.log(match)
 
   if (dateArr.length === 1){

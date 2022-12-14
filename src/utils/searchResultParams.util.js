@@ -45,7 +45,7 @@ class R4ResultParamsBuilder {
   }
 
   #_countParamsBuilder(count) {
-    return count > 100 ? 100 : count;
+    return count > 100 ? 100 : Number(count);
   }
 
   #_summaryQueryBuilder(summary, targetType){

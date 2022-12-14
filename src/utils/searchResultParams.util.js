@@ -39,16 +39,16 @@ const { capitalizeInitial, splitter } = require('./functions.util');
 
 class R4ResultParamsBuilder {
 
-  constructor(args, srchableParams){
-    this.args = args;
-    this.srchableParams = srchableParams;
-  }
+  // constructor(args, srchableParams){
+  //   this.args = args;
+  //   this.srchableParams = srchableParams;
+  // }
 
-  #_countParamsBuilder(count) {
+  #build_countParams(count) {
     return count > 100 ? 100 : Number(count);
   }
 
-  #_summaryQueryBuilder(summary, targetType){
+  #build_summaryQuery(summary, targetType){
     const r4SummaryTextValues = ['id', 'meta', 'text'];
     const r4SummaryDataValues = ['text'];
     // test for patient resource
@@ -63,7 +63,7 @@ class R4ResultParamsBuilder {
     if (summary === 'true' ) { return { [targetType]: qB([...r4SummaryTextValues, ...r4SummaryTrueValues], 1)}; }
   }
 
-  #_elementsQueryBuilder(elements, targetType){
+  #build_elementsQuery(elements, targetType){
       // const validValues = elements.split(/,/).filter(Boolean);
       let validValues = Array.isArray(elements) ? elements : [elements];
       //1文字目がハイフンでないならvisibleElm 1文字目がハイフンならhiddenElm
@@ -80,13 +80,13 @@ class R4ResultParamsBuilder {
       }
   }
 
-  #_includeParamsBuilder(include, srchableParams){
+  #build_includeParams(include, srchableParams){
   //正規表現: カンマ区切りで分割  eg: Patient:organization -> match1=Patient, match2=organization
   const reg = /\w+[^:]+/g; // /\w+\s*(?:(?:;(?:\s*\w+\s*)?)+)?/
-  const commaSplitter = splitter(include, ',');
+  const targetToArray = [].concat(include);
   const refTypesList = srchableParams;
 
-  const includeTarget = commaSplitter.filter(Boolean).map(elm => {
+  const includeTarget = targetToArray.filter(Boolean).map(elm => {
     if (elm.match(reg)[1] in refTypesList){
       return elm.match(reg).slice(1);
     } else {
@@ -98,13 +98,13 @@ class R4ResultParamsBuilder {
     const isSingle = queryKey.length === 1; //配列の数が1かどうか
     const pathBuilder = (dataName) => dataName?.xpath?.split('.').slice(1).join('.'); // Eg: Patient.link.other => link.other
 
-    return isSingle ?
-      { 'targetPath': pathBuilder(refTypesList[queryKey]), 'targetCollection': capitalizeInitial(queryKey[0]) } :
-      { 'targetPath': pathBuilder(refTypesList[queryKey[0]]), 'targetCollection': capitalizeInitial(queryKey[1]) };
+    return isSingle
+      ? { 'targetPath': pathBuilder(refTypesList[queryKey]), 'targetCollection': capitalizeInitial(queryKey[0]) }
+      : { 'targetPath': pathBuilder(refTypesList[queryKey[0]]), 'targetCollection': capitalizeInitial(queryKey[1]) };
   });
   }
 
-  #_revincludeParamsBuilder(revinclude){
+  #build_revincludeParams(revinclude){
     const reg = /\w+[^:]+/g; ///\w+\s*(?:(?:;(?:\s*\w+\s*)?)+)?/
     const commaSplitter = revinclude.split(',');
     const revincludeTarget = commaSplitter.filter(Boolean).map(elm => { return elm.match(reg); });
@@ -114,9 +114,11 @@ class R4ResultParamsBuilder {
     });
   }
 
-  bundle(){
+  bundle(args, srchableParams) {
+  // bundle() {
     const defaultRecordCount = 10;
-    let { _count, _elements, _include, _revinclude, _summary } = this.args;
+    let { _count, _elements, _include, _revinclude, _summary } = args;
+    // let { _count, _elements, _include, _revinclude, _summary } = this.args
     let query = {
       _count: defaultRecordCount,
       _filter: undefined, // _elements or _summary
@@ -131,11 +133,12 @@ class R4ResultParamsBuilder {
       throw (cannotCombineParameterError('_summary=text with other values for _summary'));
     }
 
-    if (_count) { query._count = this.#_countParamsBuilder(_count); }
-    if (_summary) { query._filter = this.#_summaryQueryBuilder(_summary, 'fields'); }
-    if (_elements) { query._filter = this.#_elementsQueryBuilder(_elements, 'fields'); }
-    if (_include) { query._include = this.#_includeParamsBuilder(_include, this.srchableParams); }
-    if (_revinclude) { query._revinclude = this.#_revincludeParamsBuilder(_revinclude); }
+    if (_count) { query._count = this.#build_countParams(_count); }
+    if (_summary) { query._filter = this.#build_summaryQuery(_summary, 'fields'); }
+    if (_elements) { query._filter = this.#build_elementsQuery(_elements, 'fields'); }
+    if (_include) { query._include = this.#build_includeParams(_include, srchableParams); }
+    // if (_include) { query._include = this.#_includeParamsBuilder(_include, this.srchableParams); }
+    if (_revinclude) { query._revinclude = this.#build_revincludeParams(_revinclude); }
 
     return query;
   }

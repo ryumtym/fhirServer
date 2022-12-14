@@ -53,7 +53,7 @@ let dateQB = function (target, path) {
     }
   } else {
     dateArr.forEach(elm => {
-      matchs = elm.match(reg);
+      const matchs = elm.match(reg);
       prefix = matchs[1];
       for (let i2 = 2; i2 < 7; i2++) {
           if (matchs[`${i2}`]) {
@@ -83,8 +83,7 @@ let dateQB = function (target, path) {
  */
 let addressAndNameQueryBuilder = function (target, type, modifier) {
 
-  // targetを配列化
-  // 括弧「(」「)」、ハイフン「-」、アンダースコア「_」、プラス「+」、イコール「=」、スラッシュ「/」、ドット「.」を全てエスケープする
+  // targetを配列化した後、括弧「(」「)」、ハイフン「-」、アンダースコア「_」、プラス「+」、イコール「=」、スラッシュ「/」、ドット「.」を全てエスケープする
   const targetToArray = [].concat(target);
   const targetTerms = targetToArray.map(elm => elm.replace(/[\\(\\)\\-\\_\\+\\=\\/\\.]/g, '\\$&')); // 引数targetを配列化
 
@@ -687,7 +686,7 @@ let dateQueryBuilder = function (date, type, path) { //fork元のコードがか
       }
   } else {
     dateArr.forEach(elm => {
-      matchs = elm.match(regex);
+      const matchs = elm.match(regex);
       prefix = matchs[1];
       for (let i2 = 2; i2 < 10; i2++) {
           if (matchs[`${i2}`]) {

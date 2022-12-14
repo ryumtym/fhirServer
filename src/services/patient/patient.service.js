@@ -22,6 +22,9 @@ const fhirParams = require('@asymmetrik/node-fhir-server-core').getSearchParamet
 const r4PatientSrchParams = fhirParams.getSearchParameters('Patient', '4_0_0');
 const refTypeSrchableParams = r4PatientSrchParams.filter(valueOf => valueOf.fhirtype === 'reference').reduce((obj, data) => ({...obj, [data.name]: data}), {});
 
+const { R4ResultParamsBuilder} = require('../../utils/searchResultParams.util');
+const r4ResultParamsBuilder = new R4ResultParamsBuilder();
+
 const {
   stringQueryBuilder,
   tokenQueryBuilder,
@@ -31,7 +34,8 @@ const {
   dateQB,
 } = require('../../utils/querybuilder.util');
 
-const { R4ResultParamsBuilder} = require('../../utils/searchResultParams.util');
+
+
 // const { forEach } = require('../../globals');
 // const { link } = require('@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/patient.parameters');
 
@@ -60,6 +64,22 @@ let buildStu3SearchQuery = (args) => {
   let addressCity = args['address-city'];
   let addressCityContains = args['address-city:contains'];
   let addressCityExact = args['address-city:exact'];
+
+  let addressCountry = args['address-country'];
+  let addressCountryContains = args['address-country:contains'];
+  let addressCountryExact = args['address-country:exact'];
+
+  let addressPostalcode = args['address-postalcode'];
+  let addressPostalcodeContains = args['address-postalcode:contains'];
+  let addressPostalcodeExact = args['address-postalcode:exact'];
+
+  let addressState = args['address-state'];
+  let addressStateContains = args['address-state:contains'];
+  let addressStateExact = args['address-state:exact'];
+
+  let addressUse = args['address-use'];
+  let addressUseContains = args['address-use:contains'];
+  let addressUseExact = args['address-use:exact'];
 
   let birthdate = args['birthdate'];
   let death_date = args['death-date'];
@@ -124,12 +144,10 @@ let buildStu3SearchQuery = (args) => {
     const queryBuilder = addressAndNameQueryBuilder(address, 'address', '');
     ors.push(...queryBuilder.map(item => item));
   }
-
   if (addressContains){
     const queryBuilder = addressAndNameQueryBuilder(addressContains, 'address', 'contains');
     ors.push(...queryBuilder.map(item => item));
   }
-
   if (addressExact){
     const queryBuilder = addressAndNameQueryBuilder(addressExact, 'address', 'exact');
     ors.push(...queryBuilder.map(item => item));
@@ -139,14 +157,64 @@ let buildStu3SearchQuery = (args) => {
     const queryBuilder = stringQueryBuilder(addressCity, 'address.city', '');
     ors.push(...queryBuilder.map(item => item));
   }
-
   if (addressCityContains){
-    const queryBuilder = stringQueryBuilder(addressCity, 'address.city', 'contains');
+    const queryBuilder = stringQueryBuilder(addressCityContains, 'address.city', 'contains');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (addressCityExact){
+    const queryBuilder = stringQueryBuilder(addressCityExact, 'address.city', 'exact');
     ors.push(...queryBuilder.map(item => item));
   }
 
-  if (addressCityExact){
-    const queryBuilder = stringQueryBuilder(addressCityExact, 'address.city', 'exact');
+  if (addressCountry){
+    const queryBuilder = stringQueryBuilder(addressCountry, 'address.country', '');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (addressCountryContains){
+    const queryBuilder = stringQueryBuilder(addressCountryContains, 'address.country', 'contains');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (addressCountryExact){
+    const queryBuilder = stringQueryBuilder(addressCountryExact, 'address.country', 'exact');
+    ors.push(...queryBuilder.map(item => item));
+  }
+
+  if (addressPostalcode){
+    const queryBuilder = stringQueryBuilder(addressPostalcode, 'address.postalcode', '');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (addressPostalcodeContains){
+    const queryBuilder = stringQueryBuilder(addressPostalcodeContains, 'address.postalcode', 'contains');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (addressPostalcodeExact){
+    const queryBuilder = stringQueryBuilder(addressPostalcodeExact, 'address.postalcode', 'exact');
+    ors.push(...queryBuilder.map(item => item));
+  }
+
+  if (addressState){
+    const queryBuilder = stringQueryBuilder(addressState, 'address.state', '');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (addressStateContains){
+    const queryBuilder = stringQueryBuilder(addressStateContains, 'address.state', 'contains');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (addressStateExact){
+    const queryBuilder = stringQueryBuilder(addressStateExact, 'address.state', 'exact');
+    ors.push(...queryBuilder.map(item => item));
+  }
+
+  if (addressUse){
+    const queryBuilder = stringQueryBuilder(addressUse, 'address.use', '');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (addressUseContains){
+    const queryBuilder = stringQueryBuilder(addressUseContains, 'address.use', 'contains');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (addressUseExact){
+    const queryBuilder = stringQueryBuilder(addressUseExact, 'address.use', 'exact');
     ors.push(...queryBuilder.map(item => item));
   }
 
@@ -162,7 +230,6 @@ let buildStu3SearchQuery = (args) => {
     const queryBuilder = tokenQueryBuilder(deceased, '', 'deceased', '', 'boolean');
     ors.push(...queryBuilder.map(item => item));
   }
-
   if (deceasedNot){
     const queryBuilder = tokenQueryBuilder(deceasedNot, '', 'deceased', '', 'boolean', 'not');
     ors.push(...queryBuilder.map(item => item));
@@ -172,7 +239,6 @@ let buildStu3SearchQuery = (args) => {
     const queryBuilder = tokenQueryBuilder(gender, '', 'gender', '', 'string', '');
     ors.push(...queryBuilder.map(item => item));
   }
-
   if (genderNot){
     const queryBuilder = tokenQueryBuilder(genderNot, '', 'gender', '', 'string', 'not');
     ors.push(...queryBuilder.map(item => item));
@@ -185,16 +251,27 @@ let buildStu3SearchQuery = (args) => {
     }
   }
 
+  if (name) {
+    const queryBuilder = addressAndNameQueryBuilder(name, 'name', '');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (nameContains) {
+    const queryBuilder = addressAndNameQueryBuilder(nameContains, 'name', 'contains');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (nameExact) {
+    const queryBuilder = addressAndNameQueryBuilder(nameExact, 'name', 'exact');
+    ors.push(...queryBuilder.map(item => item));
+  }
+
   if (nameFamily) {
     const queryBuilder = stringQueryBuilder(nameFamily, 'name.family', '');
     ors.push(...queryBuilder.map(item => item));
   }
-
   if (nameFamilyContains) {
     const queryBuilder = stringQueryBuilder(nameFamilyContains, 'name.family', 'contains');
     ors.push(...queryBuilder.map(item => item));
   }
-
   if (nameFamilyExact){
     const queryBuilder = stringQueryBuilder(nameFamilyExact, 'name.family', 'exact');
     ors.push(...queryBuilder.map(item => item));
@@ -204,17 +281,14 @@ let buildStu3SearchQuery = (args) => {
     const queryBuilder = stringQueryBuilder(nameGiven, 'name.given', '');
     ors.push(...queryBuilder.map(item => item));
   }
-
   if (nameGivenContains) {
     const queryBuilder = stringQueryBuilder(nameGivenContains, 'name.given', 'contains');
     ors.push(...queryBuilder.map(item => item));
   }
-
   if (nameGivenExact){
     const queryBuilder = stringQueryBuilder(nameGivenExact, 'name.given', 'exact');
     ors.push(...queryBuilder.map(item => item));
   }
-
 
   if (identifier) {
     const queryBuilder = tokenQueryBuilder(identifier, 'value', 'identifier', '', 'identifier', '');
@@ -224,12 +298,10 @@ let buildStu3SearchQuery = (args) => {
     //   // query[i] = queryBuilder[i];
     // }
   }
-
   if (identifierNot){
     const queryBuilder = tokenQueryBuilder(identifierNot, 'value', 'identifier', '', 'identifier', 'not');
     ors.push(...queryBuilder.map(item => item));
   }
-
   if (identifierText){
     const queryBuilder = tokenQueryBuilder(identifierText, 'value', 'identifier.type.text', '', 'identifier', 'text');
     ors.push(...queryBuilder.map(item => item));
@@ -250,20 +322,7 @@ let buildStu3SearchQuery = (args) => {
     }
   }
 
-  if (name) {
-    const queryBuilder = addressAndNameQueryBuilder(name, 'name', '');
-    ors.push(...queryBuilder.map(item => item));
-  }
 
-  if (nameContains) {
-    const queryBuilder = addressAndNameQueryBuilder(nameContains, 'name', 'contains');
-    ors.push(...queryBuilder.map(item => item));
-  }
-
-  if (nameExact) {
-    const queryBuilder = addressAndNameQueryBuilder(nameExact, 'name', 'exact');
-    ors.push(...queryBuilder.map(item => item));
-  }
 
   if (telecom){
     const queryBuilder = tokenQueryBuilder(telecom, 'value', 'telecom', '', '', '');
@@ -292,11 +351,10 @@ module.exports.search = (args, req) =>
     let query = {};
     query = buildStu3SearchQuery(args);
     // const resultOptions = r4ResultParamsBuilder(args, refTypeSrchableParams);
+    const resultOptions = r4ResultParamsBuilder.bundle(args, refTypeSrchableParams);
 
-    const r4ResultParamsBuilder = new R4ResultParamsBuilder(args, refTypeSrchableParams);
-    const resultOptions = r4ResultParamsBuilder.bundle();
     // console.log(Object.keys(args));
-    // console.log(resultOptions);
+    console.log(resultOptions);
     console.log(args);
     // console.log(query);
 

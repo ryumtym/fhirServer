@@ -223,11 +223,11 @@ let buildStu3SearchQuery = (args) => {
   }
 
   if (death_date) {
-    query = dateQB(death_date, 'deceasedDateTime');
+    query = dateQB(death_date, 'dateTime', 'deceasedDateTime');
   }
 
   if (deceased) {
-    const queryBuilder = tokenQueryBuilder(deceased, '', 'deceased', '', 'boolean');
+    const queryBuilder = tokenQueryBuilder(deceased, '', 'deceased', '', 'boolean', '');
     ors.push(...queryBuilder.map(item => item));
   }
   if (deceasedNot){

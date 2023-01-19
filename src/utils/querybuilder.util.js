@@ -1,5 +1,5 @@
 const moment = require('moment-timezone');
-const { unknownParameterError } = require('./error.util');
+const { invalidParameterError, unknownParameterError } = require('./error.util');
 
 /**
  * @name dateQB
@@ -8,72 +8,102 @@ const { unknownParameterError } = require('./error.util');
  * @param {string} path JSON path
  * @return a mongo regex query
  */
-let dateQB = function (target, path) {
-  const reg = /^(\D{2})?(\d{4})(-\d{2})?(-\d{2})?(?:(T\d{2}:\d{2})(:\d{2})?)?(Z|(\+|-|\s)(\d{2}):(\d{2}))?$/;
-  const match = target.match(reg); // 正規表現でグループ化 https://regex101.com/ testString -> 1963-05-07T00:00+00:00
+let dateQB = function (target, type, path) {
+  // 正規表現でグループ化 https://regex101.com/ testString -> 1963-05-07T00:00+00:00
+  const dateTimeRegex = /^(\D{2})?(\d{4})(-\d{2})?(-\d{2})?(?:(T\d{2}:\d{2})(:\d{2})?)?(Z|(\+|-|\s)(\d{2}):(\d{2}))?$/;
+  const dateUnits = ['year', 'month', 'day', 'hour', 'minute', 'second'];
+  const targetTerms = target.split(',');
 
   const hasEmpty = /\s/; //line30
-  const hasComma = ','; //line23 targetが複数の場合
-
-  const arr = {};
-  let dateArr = [];
-  let prefix = 'eq';
+  const mongoQuery = {};
   let str = '';
+  let dateSpecifyTerm;
 
-  if (target.match(hasComma)){ //gt&ltの組み合わせ用に配列に格納
-    dateArr = target.split(hasComma);
-  } else {
-    dateArr = [target];
-  }
+  const getCompOperator = (input) => { //使用可能な比較演算子かを確認して、使用可能ならmongoDBに合う形で返却、使用不可ならエラー処理
+    const validComparisonOperators = [
+      { Arg: 'eq', mongoOperator: '$eq' },
+      { Arg: undefined, mongoOperator: '$eq' },
+      { Arg: 'ne', mongoOperator: '$ne' },
+      { Arg: 'gt', mongoOperator: '$gt' },
+      { Arg: 'lt', mongoOperator: '$lt' },
+      { Arg: 'ge', mongoOperator: '$ge' },
+      { Arg: 'le', mongoOperator: '$le' },
+    ];
 
-  if (dateArr.length === 1){
-    const removeModif = target.replace(/(^.[a-zA-Z])/, ''); // gt20220303 -> 20220303
-    const formatSec = removeModif.replace(hasEmpty, '+'); // 2022-08-01T04:33:41 00:00 -> 2022-08-01T04:33:41+00:00
-
-    if (match[1] && match[1] !== prefix){
-      prefix = `$${match[1]}`;
-      return {
-        [path]: {
-          [prefix]: formatSec
-        }
-      };
-    } else if ( !match[1] || match[1] === prefix) {
-      if (!match[5]){
-        return {
-          [path]: {
-            // $regex: "^" + removeModif
-            $regex: removeModif
-          }
-        };
-      } else if (match[9]) {
-        return {
-          [path]: formatSec
-        };
-      }
+    //引数がcomparisonOperatorsのArgsにあるか確認
+    const valid = validComparisonOperators.find(item => item.Arg === input);
+    if (!valid){
+      throw (unknownParameterError('comparison operator', input, 'https://www.hl7.org/fhir/search.html#date'));
+      // validComparisonOperators.map(item => item.Arg).filter(Boolean)
     }
-  } else {
-    dateArr.forEach(elm => {
-      const matchs = elm.match(reg);
-      prefix = matchs[1];
-      for (let i2 = 2; i2 < 7; i2++) {
-          if (matchs[`${i2}`]) {
-              str = str + matchs[`${i2}`];
-          }
-      }
+    return valid.mongoOperator;
 
-      const moment_dt = moment.utc(str);
-      // convert to format that mongo uses to store
-      const datetime_utc = moment_dt.utc().format('YYYY-MM-DDTHH:mm:ssZ');
-      str = '';
-      Object.assign(arr, {[`$${prefix}`]: datetime_utc});
-    });
-  }
-  return {[path]: arr};
+  };
+
+  const covertToDateTime = (input, compOperator, unit) => { //dateTime型の場合、YYYY-MM-DDTHH:mm:ssZ形式に変換
+    const moment_dt = moment.utc(input); // convert to format that mongo uses to store
+    if (compOperator === '$lt' || compOperator === '$le') {
+      return moment_dt.utc().endOf(unit).format('YYYY-MM-DDTHH:mm:ssZ');
+    } else {
+      return moment_dt.utc().format('YYYY-MM-DDTHH:mm:ssZ');
+    }
+  };
+
+  const dateTimeValidator = (value) => { //date formatが正しい確認、正しければそのformatを返す、間違っていたらエラー処理
+    const allowedFormats = ['YYYY', 'YYYY-MM', 'YYYY-MM-DD', 'YYYY-MM-DDTHH:mm:ssZ'];
+    const isValid = moment(value, allowedFormats, true).isValid();
+    if (isValid) { return moment(value).creationData().format; }
+    if (!isValid){ throw (invalidParameterError('date/time format', value, 'https://www.hl7.org/fhir/search.html#date' )); }
+  };
+
+
+  targetTerms.map(elm => {
+    const removeCompOperator = elm.replace(/(^.[a-zA-Z])/, ''); // gt20220303 -> 20220303
+    const formatSec = removeCompOperator.replace(hasEmpty, '+'); // 2022-08-01T04:33:41 00:00 -> 2022-08-01T04:33:41+00:00
+    const getDateValidAndFormat = dateTimeValidator(formatSec);
+    const match = formatSec.match(dateTimeRegex);
+    const prefix = getCompOperator(match[1]);
+
+    const matchPrefix = !match[1] || match[1] === prefix;
+    const isValidFormat = ['YYYY', 'YYYY-MM', 'YYYY-MM-DD'].some(v => v === getDateValidAndFormat);
+    if (matchPrefix && isValidFormat) {
+      Object.assign(mongoQuery, {[path]: {$regex: formatSec } });
+    } else {
+      Object.assign(mongoQuery, {[path]: {[prefix]: formatSec } });
+    }
+
+
+    // const match = elm.match(dateTimeRegex);
+    // if (!match){
+    //   throw (invalidParameterError('date/time format', target, 'https://www.hl7.org/fhir/search.html#date' ));
+    // }
+    // // const prefix = getCompOperator(splitToYMDHMS[1]);
+    // for (let i = 2; i < 7; i++) {
+    //   if (match[i]) {
+    //     str = str + match[i];
+    //     dateSpecifyTerm = dateUnits[i - 2];
+    //   }
+    // }
+    // if ( !match[1] || match[1] === prefix) {
+    //   if (!match[5]){
+    //     Object.assign(arr, {[path]: {$regex: str } });
+    //   }
+    // }
+
+
+
+    // Object.assign(arr, {[prefix]: {$regex: str } });
+    // return arr;
+  });
+  // console.log(arr);
+  return mongoQuery;
+  // return {[path]: arr};
 };
 
 
 /**
  * @name addressAndNameQueryBuilder
+ * @type function
  * @description brute force method of matching human names. Splits the input and checks to see if every piece matches to
  * at least 1 part of the name field using regexs. Ignores case
  * @param {string} target
@@ -98,6 +128,7 @@ let addressAndNameQueryBuilder = function (target, type, modifier) {
 
   /**
    * @name buildPatternMatchQuery
+   * @type function
    * @description  modifierに応じて、前方一致、部分一致、完全一致検索のためのmongoクエリを作成する
    * @abstract https://www.mongodb.com/docs/manual/reference/operator/query/regex/
    * @param {string} value 検索値
@@ -111,6 +142,7 @@ let addressAndNameQueryBuilder = function (target, type, modifier) {
 
   /**
    * @name buildQueryBundle
+   * @type function
    * @description  searchTermを基にmongoクエリを複数作成し、insertionArrayにまとめる
    * @param {array} insertionArray 挿入先の配列
    * @param {array} searchTerm 挿入元の配列、nameFieldsかaddressFieldsを使用
@@ -428,7 +460,8 @@ let getDateFromNum = function (days) {
 let dateQueryBuilder = function (date, type, path) { //fork元のコードがかなりやばいので1から書き直したい
   let regex = /^(\D{2})?(\d{4})(-\d{2})?(-\d{2})?(?:(T\d{2}:\d{2})(:\d{2})?)?(Z|(\+|-|\s)(\d{2}):(\d{2}))?$/;
   const dateTerms = [].concat(date);
-  let match = dateTerms.map(elm => elm.match(regex));
+  let match = dateTerms.length === 1 ? date.match(regex) : dateTerms.map(elm => elm.match(regex));
+  // let match = dateTerms.map(elm => elm.match(regex));
   let str = '';
   let toRet = [];
   let pArr = []; //will have other possibilities such as just year, just year and month, etc
@@ -437,39 +470,33 @@ let dateQueryBuilder = function (date, type, path) { //fork元のコードがか
   let dateArr = [];
   const arr = {};
   dateArr = dateTerms;
-  // console.log(match)
+  // console.log(dateTerms.length);
+  // console.log(match);
 
   if (dateArr.length === 1){
     if (match && match.length >= 1) {
-
-        if (match[1]) {
-          // replace prefix with mongo specific comparators
+        if (match[1]) { // replace prefix with mongo specific comparators
           prefix = '$' + match[1].replace('ge', 'gte').replace('le', 'lte');
         }
-        if (type === 'date') {
-          //if its just a date, we don't have to worry about time components
-          if (prefix === '$eq') {
-            //add parts of date that are available
-            for (let i = 2; i < 5; i++) {
-              //add up the date parts in a string
+        if (type === 'date') { //if its just a date, we don't have to worry about time components
+          if (prefix === '$eq' || prefix === '$ne') { //add parts of date that are available
+            for (let i = 2; i < 5; i++) { //add up the date parts in a string
               if (match[i]) {
                 str = str + match[i];
                 pArr[i - 2] = str + '$';
               }
             }
-            //below we have to check if the search gave more information than what is actually stored
-            return {'$regex': '^' + str};
+            return prefix === '$eq' ? {'$regex': '^' + str} : { $not: {'$regex': '^' + str} };
           } else {
             for (let i = 2; i < 10; i++) {
-                if (match[`${i}`]) {
-                    str = str + match[`${i}`];
+                if (match[i]) {
+                  str = str + match[i];
                 }
             }
-            const moment_dt = moment.utc(str);
-            // convert to format that mongo uses to store
+            const moment_dt = moment.utc(str);// convert to format that mongo uses to store
             const datetime_utc = moment_dt.utc().format('YYYY-MM-DDTHH:mm:ssZ');
             Object.assign(arr, {[`${prefix}`]: datetime_utc});
-        }
+          }
         }
 
         if (type === 'dateTime' || type === 'instant' || type === 'period' || type === 'timing') {
@@ -689,12 +716,11 @@ let dateQueryBuilder = function (date, type, path) { //fork元のコードがか
       const matchs = elm.match(regex);
       prefix = matchs[1];
       for (let i2 = 2; i2 < 10; i2++) {
-          if (matchs[`${i2}`]) {
-              str = str + matchs[`${i2}`];
-          }
+        if (matchs[`${i2}`]) {
+          str = str + matchs[`${i2}`];
+        }
       }
-      const moment_dt = moment.utc(str);
-      // convert to format that mongo uses to store
+      const moment_dt = moment.utc(str); // convert to format that mongo uses to store
       const datetime_utc = moment_dt.utc().format('YYYY-MM-DDTHH:mm:ssZ');
       str = '';
       Object.assign(arr, {[`$${prefix}`]: datetime_utc});

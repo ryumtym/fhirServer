@@ -40,16 +40,7 @@ let dateQB = function (target, type, path) {
 
   };
 
-  const covertToDateTime = (input, compOperator, unit) => { //dateTime型の場合、YYYY-MM-DDTHH:mm:ssZ形式に変換
-    const moment_dt = moment.utc(input); // convert to format that mongo uses to store
-    if (compOperator === '$lt' || compOperator === '$le') {
-      return moment_dt.utc().endOf(unit).format('YYYY-MM-DDTHH:mm:ssZ');
-    } else {
-      return moment_dt.utc().format('YYYY-MM-DDTHH:mm:ssZ');
-    }
-  };
-
-  const dateTimeValidator = (value) => { //date formatが正しい確認、正しければそのformatを返す、間違っていたらエラー処理
+  const dateValid = (value) => { //date formatが正しい確認、正しければそのformatを返す、間違っていたらエラー処理
     const allowedFormats = ['YYYY', 'YYYY-MM', 'YYYY-MM-DD', 'YYYY-MM-DDTHH:mm:ssZ'];
     const isValid = moment(value, allowedFormats, true).isValid();
     if (isValid) { return moment(value).creationData().format; }
@@ -58,15 +49,16 @@ let dateQB = function (target, type, path) {
 
 
   targetTerms.map(elm => {
-    const removeCompOperator = elm.replace(/(^.[a-zA-Z])/, ''); // gt20220303 -> 20220303
-    const formatSec = removeCompOperator.replace(hasEmpty, '+'); // 2022-08-01T04:33:41 00:00 -> 2022-08-01T04:33:41+00:00
-    const getDateValidAndFormat = dateTimeValidator(formatSec);
+    const extractDate = elm.replace(/(^.[a-zA-Z])/, ''); // gt20220303 -> 20220303
+    const formatSec = extractDate.replace(hasEmpty, '+'); // 2022-08-01T04:33:41 00:00 -> 2022-08-01T04:33:41+00:00
+    const getDateValidAndFormat = dateValid(formatSec);
     const match = formatSec.match(dateTimeRegex);
     const prefix = getCompOperator(match[1]);
 
-    const matchPrefix = !match[1] || match[1] === prefix;
-    const isValidFormat = ['YYYY', 'YYYY-MM', 'YYYY-MM-DD'].some(v => v === getDateValidAndFormat);
-    if (matchPrefix && isValidFormat) {
+    const isComparatorSpecified = !match[1] || match[1] === prefix; //比較演算子が指定されているか
+    const isSecondSpecified = ['YYYY', 'YYYY-MM', 'YYYY-MM-DD'].some(v => v === getDateValidAndFormat); //秒数が指定されているか
+
+    if (isComparatorSpecified && isSecondSpecified) {
       Object.assign(mongoQuery, {[path]: {$regex: formatSec } });
     } else {
       Object.assign(mongoQuery, {[path]: {[prefix]: formatSec } });

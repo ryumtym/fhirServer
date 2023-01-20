@@ -9,20 +9,22 @@ const { invalidParameterError, unknownParameterError } = require('./error.util')
  * @return a mongo regex query
  */
 let dateQB = function (target, type, path) {
-  // 正規表現でグループ化 https://regex101.com/ testString -> 1963-05-07T00:00+00:00
-  const dateTimeRegex = /^(\D{2})?(\d{4})(-\d{2})?(-\d{2})?(?:(T\d{2}:\d{2})(:\d{2})?)?(Z|(\+|-|\s)(\d{2}):(\d{2}))?$/;
-  const dateUnits = ['year', 'month', 'day', 'hour', 'minute', 'second'];
-  const targetTerms = target.split(',');
+  // const regex = /^(\D{2})?(\d{4})(-\d{2})?(-\d{2})?(?:(T\d{2}:\d{2})(:\d{2})?)?(Z|(\+|-|\s)(\d{2}):(\d{2}))?$/;
+  // const regex = /^(^[a-zA-Z]*)?(\d{4})(-\d{2})?(-\d{2})?(?:(T\d{2}:\d{2})(:\d{2})?)?(Z|(\+|-|\s)(\d{2})(:\d{2}))?$/;
 
-  const hasEmpty = /\s/; //line30
-  const mongoQuery = {};
-  let str = '';
-  let dateSpecifyTerm;
+  // regex1 => 比較演算子と日付に分割  eg: gt2005-03-04 => ['gt2005-03-04', 'gt', '20152005-03-04'] https://regex101.com/
+  // regex2 => 日付を更に分割  eg: lt2015-02-14 => ['lt2015-02', 'lt', '2015', '-02', '-14',....]
+  const regex1 = /(^[a-zA-Z]*)(.*)/;
+  const regex2 = /^(\d{4})(-\d{2})?(-\d{2})?(?:(T\d{2}:\d{2})(:\d{2})?)?(Z|(\+|-|\s)(\d{2})(:\d{2}))?$/;
 
-  const getCompOperator = (input) => { //使用可能な比較演算子かを確認して、使用可能ならmongoDBに合う形で返却、使用不可ならエラー処理
+  const targetToArray = Array.isArray(target) ? target : [target];
+  const mongoQuery = {}; //この関数から最終的に吐き出されるmongoQuery
+
+  const validComparator = (input) => { //使用可能な比較演算子かを確認して、使用可能ならmongoDBに合う形で返却、使用不可ならエラー処理
     const validComparisonOperators = [
       { Arg: 'eq', mongoOperator: '$eq' },
       { Arg: undefined, mongoOperator: '$eq' },
+      { Arg: '', mongoOperator: '$eq' },
       { Arg: 'ne', mongoOperator: '$ne' },
       { Arg: 'gt', mongoOperator: '$gt' },
       { Arg: 'lt', mongoOperator: '$lt' },
@@ -33,63 +35,47 @@ let dateQB = function (target, type, path) {
     //引数がcomparisonOperatorsのArgsにあるか確認
     const valid = validComparisonOperators.find(item => item.Arg === input);
     if (!valid){
-      throw (unknownParameterError('comparison operator', input, 'https://www.hl7.org/fhir/search.html#date'));
-      // validComparisonOperators.map(item => item.Arg).filter(Boolean)
+      throw (unknownParameterError('comparison operator', input, validComparisonOperators.map(item => item.Arg).filter(Boolean)));
     }
     return valid.mongoOperator;
 
   };
 
-  const dateValid = (value) => { //date formatが正しい確認、正しければそのformatを返す、間違っていたらエラー処理
-    const allowedFormats = ['YYYY', 'YYYY-MM', 'YYYY-MM-DD', 'YYYY-MM-DDTHH:mm:ssZ'];
-    const isValid = moment(value, allowedFormats, true).isValid();
+  const validFormat = (value) => { //date formatが正しい確認、正しければそのformatを返す、間違っていたらエラー処理
+    const validFormats = ['YYYY', 'YYYY-MM', 'YYYY-MM-DD', 'YYYY-MM-DDTHH:mm:ssZ'];
+    const isValid = moment(value, validFormats, true).isValid();
     if (isValid) { return moment(value).creationData().format; }
     if (!isValid){ throw (invalidParameterError('date/time format', value, 'https://www.hl7.org/fhir/search.html#date' )); }
   };
 
+  targetToArray.map(elm => {
+    const separator = elm.match(regex1);
 
-  targetTerms.map(elm => {
-    const extractDate = elm.replace(/(^.[a-zA-Z])/, ''); // gt20220303 -> 20220303
-    const formatSec = extractDate.replace(hasEmpty, '+'); // 2022-08-01T04:33:41 00:00 -> 2022-08-01T04:33:41+00:00
-    const getDateValidAndFormat = dateValid(formatSec);
-    const match = formatSec.match(dateTimeRegex);
-    const prefix = getCompOperator(match[1]);
+    const comparator = validComparator(separator[1]);
+    const targetDate = separator[2].replace(/\s/, '+');
 
-    const isComparatorSpecified = !match[1] || match[1] === prefix; //比較演算子が指定されているか
-    const isSecondSpecified = ['YYYY', 'YYYY-MM', 'YYYY-MM-DD'].some(v => v === getDateValidAndFormat); //秒数が指定されているか
+    // formatチェック
+    validFormat(targetDate); // console.log(regex2.test(targetDate));
+    const match = targetDate.match(regex2);
 
-    if (isComparatorSpecified && isSecondSpecified) {
-      Object.assign(mongoQuery, {[path]: {$regex: formatSec } });
+    // 秒数(match[8])まで指定されていたら秒以下含めて結合、指定されていなければ秒以下含めないで結合
+    const toUTC = match[8] ? `${match.slice(1, 6).join('')}+${match[8]}${match[9]}` : match.slice(1, 6).join('');
+
+    // toUTCがfhirのdateTime型に準じているかvalidFormat関数で確認後、YYYY-MM-DDTHH:mm:ssZ形式かどうかをbool型で返す
+    const hasSecondSpecified = ['YYYY-MM-DDTHH:mm:ssZ'].some(v => v === validFormat(toUTC));
+
+    if (comparator === '$eq' && hasSecondSpecified) {
+      Object.assign(mongoQuery, {[path]: {[comparator]: toUTC } });
+    } else if (comparator !== '$eq' && !hasSecondSpecified) {
+        const datetime_utc = moment.utc(toUTC).format('YYYY-MM-DDTHH:mm:ssZ');
+        Object.assign(mongoQuery, { [path]: { [comparator]: datetime_utc } });
     } else {
-      Object.assign(mongoQuery, {[path]: {[prefix]: formatSec } });
+        Object.assign(mongoQuery, {[path]: {$regex: toUTC } });
     }
 
-
-    // const match = elm.match(dateTimeRegex);
-    // if (!match){
-    //   throw (invalidParameterError('date/time format', target, 'https://www.hl7.org/fhir/search.html#date' ));
-    // }
-    // // const prefix = getCompOperator(splitToYMDHMS[1]);
-    // for (let i = 2; i < 7; i++) {
-    //   if (match[i]) {
-    //     str = str + match[i];
-    //     dateSpecifyTerm = dateUnits[i - 2];
-    //   }
-    // }
-    // if ( !match[1] || match[1] === prefix) {
-    //   if (!match[5]){
-    //     Object.assign(arr, {[path]: {$regex: str } });
-    //   }
-    // }
-
-
-
-    // Object.assign(arr, {[prefix]: {$regex: str } });
-    // return arr;
   });
-  // console.log(arr);
+
   return mongoQuery;
-  // return {[path]: arr};
 };
 
 

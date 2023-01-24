@@ -118,7 +118,6 @@ let buildStu3SearchQuery = (args) => {
   let query = {};
   let ors = [];
 
-
   if (_id) {
     query.id = _id;
   }
@@ -514,7 +513,7 @@ module.exports.create = (args, { req }) =>
     let Meta = getMeta(base_version);
     patient.meta = new Meta({
       versionId: '1',
-      lastUpdated: moment.utc().format('YYYY-MM-DDTHH:mm:ssZ'),
+      lastUpdated: moment.utc().local().format('YYYY-MM-DDTHH:mm:ssZ'),
     });
 
     // Create the document to be inserted into Mongo

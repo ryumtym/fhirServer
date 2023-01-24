@@ -9,18 +9,18 @@ const { invalidParameterError, unknownParameterError } = require('./error.util')
  * @return a mongo regex query
  */
 let dateQB = function (target, type, path) {
-  // const regex = /^(\D{2})?(\d{4})(-\d{2})?(-\d{2})?(?:(T\d{2}:\d{2})(:\d{2})?)?(Z|(\+|-|\s)(\d{2}):(\d{2}))?$/;
-  // const regex = /^(^[a-zA-Z]*)?(\d{4})(-\d{2})?(-\d{2})?(?:(T\d{2}:\d{2})(:\d{2})?)?(Z|(\+|-|\s)(\d{2})(:\d{2}))?$/;
-
-  // regex1 => 比較演算子と日付に分割  eg: gt2005-03-04 => ['gt2005-03-04', 'gt', '20152005-03-04'] https://regex101.com/
-  // regex2 => 日付を更に分割  eg: lt2015-02-14 => ['lt2015-02', 'lt', '2015', '-02', '-14',....]
-  const regex1 = /(^[a-zA-Z]*)(.*)/;
-  const regex2 = /^(\d{4})(-\d{2})?(-\d{2})?(?:(T\d{2}:\d{2})(:\d{2})?)?(Z|(\+|-|\s)(\d{2})(:\d{2}))?$/;
-
-  const targetToArray = Array.isArray(target) ? target : [target];
+  // https://regex101.com/
+  const regex1 = /(^[a-zA-Z]*)(.*)/; //eg: gt2005-03-04 => ['gt2005-03-04', 'gt', '20152005-03-04']
+  const regex2 = /^(\d{4})(-\d{2})?(-\d{2})?(?:(T\d{2}:\d{2})(:\d{2})?)?(Z|(\+|-|\s)(\d{2})(:\d{2}))?$/; // eg: lt2015-02-14 => ['lt2015-02', 'lt', '2015', '-02', '-14',....]
+  const targetToArray = Array.isArray(target) ? target : [target]; // 配列化
   const mongoQuery = {}; //この関数から最終的に吐き出されるmongoQuery
 
-  const validComparator = (input) => { //使用可能な比較演算子かを確認して、使用可能ならmongoDBに合う形で返却、使用不可ならエラー処理
+  // if (typeof (target) === 'string'){
+  //   throw (invalidParameterError('date/time format', target, 'or and ha tsukaen' ));
+  // }
+
+
+  const validComparator = (value) => { // 使用可能な比較演算子かを確認して、使用可能ならmongoDBに合う形で返却、使用不可ならエラー処理
     const validComparisonOperators = [
       { Arg: 'eq', mongoOperator: '$eq' },
       { Arg: undefined, mongoOperator: '$eq' },
@@ -33,49 +33,84 @@ let dateQB = function (target, type, path) {
     ];
 
     //引数がcomparisonOperatorsのArgsにあるか確認
-    const valid = validComparisonOperators.find(item => item.Arg === input);
-    if (!valid){
-      throw (unknownParameterError('comparison operator', input, validComparisonOperators.map(item => item.Arg).filter(Boolean)));
+    const isValid = validComparisonOperators.find(item => item.Arg === value);
+    if (isValid){ return isValid.mongoOperator; }
+    if (!isValid){
+      throw (unknownParameterError('comparison operator', value, validComparisonOperators.map(item => item.Arg).filter(Boolean)));
     }
-    return valid.mongoOperator;
 
   };
 
-  const validFormat = (value) => { //date formatが正しい確認、正しければそのformatを返す、間違っていたらエラー処理
-    const validFormats = ['YYYY', 'YYYY-MM', 'YYYY-MM-DD', 'YYYY-MM-DDTHH:mm:ssZ'];
-    const isValid = moment(value, validFormats, true).isValid();
-    if (isValid) { return moment(value).creationData().format; }
-    if (!isValid){ throw (invalidParameterError('date/time format', value, 'https://www.hl7.org/fhir/search.html#date' )); }
+  const identifyFormat = (dateValue) => { // 日付値をフォーマットに変換し、使用可能か確認、使用可能ならフォーマットを返す、用不可ならエラー処理
+    const validFormats = ['YYYY', 'YYYY-MM', 'YYYY-MM-DD', 'YYYY-MM-DDTHH', 'YYYY-MM-DDTHH:mm', 'YYYY-MM-DDTHH:mm:ss', 'YYYY-MM-DDTHH:mm:ssZ'];
+    const isValid = moment(dateValue, validFormats, true).isValid();
+
+    if (isValid) { return moment(dateValue).creationData().format; }
+    if (!isValid){ throw (invalidParameterError('date/time format', dateValue, validFormats )); }
+  };
+
+  const findDateBoundary = (operator, inputDate, dateFormat) => { // 比較演算子,日付,フォーマットを基にstartOf,endOf化した日付を返す
+    const granularityMap = {
+      'YYYY': 'year',
+      'YYYY-MM': 'month',
+      'YYYY-MM-DD': 'day',
+      'YYYY-MM-DDTHH': 'hour',
+      'YYYY-MM-DDTHH:mm': 'minute',
+      'YYYY-MM-DDTHH:mm:ss': 'second'
+    };
+
+    const dateGranularity = granularityMap[dateFormat];
+    if (operator === '$gt'){ return moment(inputDate).startOf(dateGranularity).format('YYYY-MM-DDTHH:mm:ssZ'); }
+    if (operator === '$lt'){ return moment(inputDate).endOf(dateGranularity).format('YYYY-MM-DDTHH:mm:ssZ'); }
+  };
+
+  const identifyISO8601Type = (value) => { // iso8601が基本形式か拡張形式かを判別しどちらでもないならエラーを返す
+    const isBasicPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/.test(value);
+    const isExpandPattern = /^(\d{4})(-\d{2})?(-\d{2})?(?:(T\d{2}:\d{2})(:\d{2})?)?(Z|(\+|-|\s)(\d{2})(:\d{2}))?$/.test(value);
+
+    if (isBasicPattern) { return 'basicType'; }
+    if (isExpandPattern) { return 'expandType'; }
+    if (!isBasicPattern && !isExpandPattern){
+      throw (invalidParameterError('date/time format', value, 'ISO8601 basic and extended formats only' ));
+    }
   };
 
   targetToArray.map(elm => {
+    // 入ってきた値をregex1で分割
     const separator = elm.match(regex1);
 
+    // separator[1]の比較演算子が使用可能な値ならmongoDBで使えるように整形して返却、使用不可ならエラー処理
     const comparator = validComparator(separator[1]);
-    const targetDate = separator[2].replace(/\s/, '+');
 
-    // formatチェック
-    validFormat(targetDate); // console.log(regex2.test(targetDate));
-    const match = targetDate.match(regex2);
+    // separator[2]がISO8601か確認して、正しいならYYYY-MM-DDTHH:mm:ssZに整形後、[年,月,日,時,分..]に分割、正しくないならエラー処理
+    const targetDate = identifyISO8601Type(separator[2]) === 'basicType' ? moment(separator[2]).format().match(regex2) : separator[2].match(regex2);
 
-    // 秒数(match[8])まで指定されていたら秒以下含めて結合、指定されていなければ秒以下含めないで結合
-    const toUTC = match[8] ? `${match.slice(1, 6).join('')}+${match[8]}${match[9]}` : match.slice(1, 6).join('');
+    // mongoDB用の検索値を作成
+    const generateSearchKey = (date) => {
+      if (date[8]){ return `${date.slice(1, 6).join('')}+${date[8]}${date[9]}`; }
+      else { return date[0]; } //regex search
+    };
 
-    // toUTCがfhirのdateTime型に準じているかvalidFormat関数で確認後、YYYY-MM-DDTHH:mm:ssZ形式かどうかをbool型で返す
-    const hasSecondSpecified = ['YYYY-MM-DDTHH:mm:ssZ'].some(v => v === validFormat(toUTC));
+    // dateQueryValueがfhirのdateTime型に準じているかidentifyFormat関数で確認後、YYYY-MM-DDTHH:mm:ssZ形式かどうかをbool型で返す
+    const dateQueryValue = generateSearchKey(targetDate);
+    const hasSecondSpecified = ['YYYY-MM-DDTHH:mm:ss', 'YYYY-MM-DDTHH:mm:ssZ'].some(v => v === identifyFormat(dateQueryValue));
+
 
     if (comparator === '$eq' && hasSecondSpecified) {
-      Object.assign(mongoQuery, {[path]: {[comparator]: toUTC } });
-    } else if (comparator !== '$eq' && !hasSecondSpecified) {
-        const datetime_utc = moment.utc(toUTC).format('YYYY-MM-DDTHH:mm:ssZ');
-        Object.assign(mongoQuery, { [path]: { [comparator]: datetime_utc } });
+      Object.assign(mongoQuery, { [comparator]: dateQueryValue });
+    } else if (comparator === '$eq' && !hasSecondSpecified){
+      Object.assign(mongoQuery, { $regex: '^' + dateQueryValue });
+    } else if (comparator === '$ne' && hasSecondSpecified){
+      Object.assign(mongoQuery, { [comparator]: dateQueryValue } );
+    } else if (comparator === '$ne' && !hasSecondSpecified) {
+      Object.assign(mongoQuery, { $not: { $regex: '^' + dateQueryValue} } );
     } else {
-        Object.assign(mongoQuery, {[path]: {$regex: toUTC } });
+      Object.assign(mongoQuery, { [comparator]: findDateBoundary(comparator, dateQueryValue, identifyFormat(dateQueryValue))} );
     }
 
-  });
 
-  return mongoQuery;
+  });
+  return {[path]: mongoQuery };
 };
 
 

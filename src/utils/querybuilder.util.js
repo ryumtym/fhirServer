@@ -3,53 +3,18 @@ const { invalidParameterError, unknownParameterError } = require('./error.util')
 
 /**
  * @name dateQB
- * @description _lastUpdated has any dateformat pattern. most likely yyyy, yyyymm, yyyymmdd, ltyyyy, gtyyyymm, etc... so frustrated!
+ * @description targetで与えられた値を基にmongoQueryを作成する
  * @param {string} target what we are querying for
  * @param {string} path JSON path
  * @return a mongo regex query
  */
 let dateQB = function (target, type, path) {
   // https://regex101.com/
-  const regex1 = /(^[a-zA-Z]*)(.*)/; //eg: gt2005-03-04 => ['gt2005-03-04', 'gt', '20152005-03-04']
-  const regex2 = /^(\d{4})(-\d{2})?(-\d{2})?(?:(T\d{2}:\d{2})(:\d{2})?)?(Z|(\+|-|\s)(\d{2})(:\d{2}))?$/; // eg: lt2015-02-14 => ['lt2015-02', 'lt', '2015', '-02', '-14',....]
+  const regex = /(^[a-zA-Z]*)(.*)/; //eg: gt2005-03-04 => ['gt2005-03-04', 'gt', '20152005-03-04']
   const targetToArray = Array.isArray(target) ? target : [target]; // 配列化
   const mongoQuery = {}; //この関数から最終的に吐き出されるmongoQuery
 
-  // if (typeof (target) === 'string'){
-  //   throw (invalidParameterError('date/time format', target, 'or and ha tsukaen' ));
-  // }
-
-
-  const validComparator = (value) => { // 使用可能な比較演算子かを確認して、使用可能ならmongoDBに合う形で返却、使用不可ならエラー処理
-    const validComparisonOperators = [
-      { Arg: 'eq', mongoOperator: '$eq' },
-      { Arg: undefined, mongoOperator: '$eq' },
-      { Arg: '', mongoOperator: '$eq' },
-      { Arg: 'ne', mongoOperator: '$ne' },
-      { Arg: 'gt', mongoOperator: '$gt' },
-      { Arg: 'lt', mongoOperator: '$lt' },
-      { Arg: 'ge', mongoOperator: '$ge' },
-      { Arg: 'le', mongoOperator: '$le' },
-    ];
-
-    //引数がcomparisonOperatorsのArgsにあるか確認
-    const isValid = validComparisonOperators.find(item => item.Arg === value);
-    if (isValid){ return isValid.mongoOperator; }
-    if (!isValid){
-      throw (unknownParameterError('comparison operator', value, validComparisonOperators.map(item => item.Arg).filter(Boolean)));
-    }
-
-  };
-
-  const identifyFormat = (dateValue) => { // 日付値をフォーマットに変換し、使用可能か確認、使用可能ならフォーマットを返す、用不可ならエラー処理
-    const validFormats = ['YYYY', 'YYYY-MM', 'YYYY-MM-DD', 'YYYY-MM-DDTHH', 'YYYY-MM-DDTHH:mm', 'YYYY-MM-DDTHH:mm:ss', 'YYYY-MM-DDTHH:mm:ssZ'];
-    const isValid = moment(dateValue, validFormats, true).isValid();
-
-    if (isValid) { return moment(dateValue).creationData().format; }
-    if (!isValid){ throw (invalidParameterError('date/time format', dateValue, validFormats )); }
-  };
-
-  const findDateBoundary = (operator, inputDate, dateFormat) => { // 比較演算子,日付,フォーマットを基にstartOf,endOf化した日付を返す
+  const findDateBoundary = (operator, dateStr, format) => { // 比較演算子,日付,フォーマットを基にstartOf,endOf化した日付を返す
     const granularityMap = {
       'YYYY': 'year',
       'YYYY-MM': 'month',
@@ -59,57 +24,83 @@ let dateQB = function (target, type, path) {
       'YYYY-MM-DDTHH:mm:ss': 'second'
     };
 
-    const dateGranularity = granularityMap[dateFormat];
-    if (operator === '$gt'){ return moment(inputDate).startOf(dateGranularity).format('YYYY-MM-DDTHH:mm:ssZ'); }
-    if (operator === '$lt'){ return moment(inputDate).endOf(dateGranularity).format('YYYY-MM-DDTHH:mm:ssZ'); }
+    const dateGranularity = granularityMap[format];
+    if (operator === '$gt'){ return moment(dateStr).startOf(dateGranularity).format('YYYY-MM-DDTHH:mm:ssZ'); }
+    if (operator === '$lt'){ return moment(dateStr).endOf(dateGranularity).format('YYYY-MM-DDTHH:mm:ssZ'); }
   };
 
-  const identifyISO8601Type = (value) => { // iso8601が基本形式か拡張形式かを判別しどちらでもないならエラーを返す
-    const isBasicPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/.test(value);
-    const isExpandPattern = /^(\d{4})(-\d{2})?(-\d{2})?(?:(T\d{2}:\d{2})(:\d{2})?)?(Z|(\+|-|\s)(\d{2})(:\d{2}))?$/.test(value);
-
-    if (isBasicPattern) { return 'basicType'; }
-    if (isExpandPattern) { return 'expandType'; }
-    if (!isBasicPattern && !isExpandPattern){
-      throw (invalidParameterError('date/time format', value, 'ISO8601 basic and extended formats only' ));
+  const isISO8601 = (dateStr) => { // iso8601形式か確認
+    const isBasicFormat = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/.test(dateStr);
+    const isExpandedFormat = /^(\d{4})(-\d{2})?(-\d{2})?(?:(T\d{2}:\d{2})(:\d{2})?)?(Z|(\+|-|\s)(\d{2})(:\d{2}))?$/.test(dateStr);
+    if (!isBasicFormat && !isExpandedFormat){
+      throw (invalidParameterError('date/time format', dateStr, 'ISO8601 basic or expanded formats only' ));
     }
+    return true;
+  };
+
+  const isValidOperator = (operator) => { //演算子が使用可能な値か確認してbool型で返す
+    const validOperators = [ 'eq', 'ne', 'gt', 'lt', 'ge', 'le', undefined, ''];
+    const isValid = validOperators.some(item => item === operator);
+    if (isValid){ return isValid; }
+    if (!isValid){ throw (unknownParameterError('comparison operator', operator, validOperators.filter(Boolean))); }
+  };
+
+  const isValidFormat = (dateStr) => { // 日付値が使用可能か確認してbool型で返す
+    const validFormats = ['YYYY', 'YYYY-MM', 'YYYY-MM-DD', 'YYYY-MM-DDTHH', 'YYYY-MM-DDTHH:mm', 'YYYY-MM-DDTHH:mm:ss', 'YYYY-MM-DDTHH:mm:ssZ'];
+    const isValid = moment(dateStr, validFormats, true).isValid();
+    if (isValid) { return moment(dateStr).creationData().format; }
+    if (!isValid){ throw (invalidParameterError('date/time format', dateStr, validFormats )); }
+  };
+
+  const toDateParts = (dateStr) => { //日付をiso8601拡張形式に変更して、分割
+    const basicPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/;
+    const expandedPattern = /^(\d{4})(-\d{2})?(-\d{2})?(?:(T\d{2}:\d{2})(:\d{2})?)?(Z|(\+|-|\s)(\d{2})(:\d{2}))?$/;
+
+    if (basicPattern.test(dateStr)) { return moment(dateStr).format().match(expandedPattern); }
+    if (expandedPattern.test(dateStr)) { return dateStr.match(expandedPattern); }
+  };
+
+  const toMongoComparisonOperator = (operator) => { // 渡された演算子をmongoDBに沿う形で返却
+    if (operator === 'eq' || operator === undefined || operator === ''){return '$eq';}
+    if (operator === 'ne'){return '$ne';}
+    if (operator === 'gt'){return '$gt';}
+    if (operator === 'lt'){return '$lt';}
+    if (operator === 'ge'){return '$ge';}
+    if (operator === 'le'){return '$le';}
   };
 
   targetToArray.map(elm => {
-    // 入ってきた値をregex1で分割
-    const separator = elm.match(regex1);
+    // 入ってきた値をregexで分割
+    const elements = elm.match(regex); // const [, operatorElm, dateElm] = elm.match(regex);
 
-    // separator[1]の比較演算子が使用可能な値ならmongoDBで使えるように整形して返却、使用不可ならエラー処理
-    const comparator = validComparator(separator[1]);
+    // targetToParts[1]の演算子が使用可能な値ならmongoDBで使えるように整形して返却、使用不可ならエラー処理
+    const comparisonOperator = isValidOperator(elements[1]) && toMongoComparisonOperator(elements[1]);
 
-    // separator[2]がISO8601か確認して、正しいならYYYY-MM-DDTHH:mm:ssZに整形後、[年,月,日,時,分..]に分割、正しくないならエラー処理
-    const targetDate = identifyISO8601Type(separator[2]) === 'basicType' ? moment(separator[2]).format().match(regex2) : separator[2].match(regex2);
+    // targetToParts[2]がISO8601なら、YYYY-MM-DDTHH:mm:ssZに整形後、[年,月,日,時,分..]に分割、ISO8601でないならエラー処理
+    const dateParts = isISO8601(elements[2]) && toDateParts(elements[2]);
 
-    // mongoDB用の検索値を作成
-    const generateSearchKey = (date) => {
-      if (date[8]){ return `${date.slice(1, 6).join('')}+${date[8]}${date[9]}`; }
-      else { return date[0]; } //regex search
-    };
+    // mongoで使う検索値を作成  時差(Z)まで指定されていたらrarara
+    const searchValue = dateParts[8] ? `${dateParts.slice(1, 6).join('')}+${dateParts[8]}${dateParts[9]}` : dateParts[0];
 
-    // dateQueryValueがfhirのdateTime型に準じているかidentifyFormat関数で確認後、YYYY-MM-DDTHH:mm:ssZ形式かどうかをbool型で返す
-    const dateQueryValue = generateSearchKey(targetDate);
-    const hasSecondSpecified = ['YYYY-MM-DDTHH:mm:ss', 'YYYY-MM-DDTHH:mm:ssZ'].some(v => v === identifyFormat(dateQueryValue));
+    // 日付をフォーマット化 eg: 2000-01-01 -> YYYY-MM-DD
+    const toFormat = moment(searchValue).creationData().format;
 
+    // 秒以下の指定があるかを確認してbool型で返す
+    const hasSeconds = isValidFormat(searchValue) && ['YYYY-MM-DDTHH:mm:ss', 'YYYY-MM-DDTHH:mm:ssZ'].some(v => v === toFormat );
 
-    if (comparator === '$eq' && hasSecondSpecified) {
-      Object.assign(mongoQuery, { [comparator]: dateQueryValue });
-    } else if (comparator === '$eq' && !hasSecondSpecified){
-      Object.assign(mongoQuery, { $regex: '^' + dateQueryValue });
-    } else if (comparator === '$ne' && hasSecondSpecified){
-      Object.assign(mongoQuery, { [comparator]: dateQueryValue } );
-    } else if (comparator === '$ne' && !hasSecondSpecified) {
-      Object.assign(mongoQuery, { $not: { $regex: '^' + dateQueryValue} } );
-    } else {
-      Object.assign(mongoQuery, { [comparator]: findDateBoundary(comparator, dateQueryValue, identifyFormat(dateQueryValue))} );
-    }
+    // queryを作成
+    const queryTerm = (() => {
+      if (comparisonOperator === '$eq' && hasSeconds) { return { [comparisonOperator]: searchValue }; }
+      else if (comparisonOperator === '$ne' && hasSeconds){ return { [comparisonOperator]: searchValue }; }
+      else if (comparisonOperator === '$eq' && !hasSeconds){ return { $regex: '^' + searchValue }; }
+      else if (comparisonOperator === '$ne' && !hasSeconds) { return { $not: { $regex: '^' + searchValue} }; }
+      else { return { [comparisonOperator]: findDateBoundary(comparisonOperator, searchValue, toFormat)}; }
+    })();
 
+    Object.assign(mongoQuery, queryTerm );
 
   });
+
   return {[path]: mongoQuery };
 };
 

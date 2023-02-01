@@ -29,7 +29,7 @@ const {
   stringQueryBuilder,
   tokenQueryBuilder,
   referenceQueryBuilder,
-  addressAndNameQueryBuilder,
+  addressOrNameQueryBuilder,
   dateQueryBuilder,
   dateQB,
 } = require('../../utils/querybuilder.util');
@@ -115,8 +115,22 @@ let buildStu3SearchQuery = (args) => {
 
   let telecom = args['telecom'];
 
+
   let query = {};
   let ors = [];
+
+  // const key = (srchParam) => Object.keys(args).filter(k => k.match(new RegExp(`(${srchParam})(:?.*)`)));
+  // const modif = (str) => str.match(/([^:]*)(:?)(.*)/)[3];
+  // // const isMissing = (str) => /^missing$/.test(str);
+  // const genderTest = key('gender');
+
+  // if (genderTest){
+  //   genderTest.map(elm => {
+  //     const queryBuilder = tokenQueryBuilder(args[elm], '', 'gender', '', 'string', modif(elm));
+  //     ors.push(...queryBuilder.map(item => item));
+  //   });
+  // }
+
 
   if (_id) {
     query.id = _id;
@@ -125,7 +139,6 @@ let buildStu3SearchQuery = (args) => {
   if (_lastUpdated){
     query = dateQB(_lastUpdated, 'meta.lastUpdated');
   }
-
 
   if (active) {
     const queryBuilder = tokenQueryBuilder(active, '', 'active', '', 'boolean', '');
@@ -140,15 +153,15 @@ let buildStu3SearchQuery = (args) => {
   }
 
   if (address){
-    const queryBuilder = addressAndNameQueryBuilder(address, 'address', '');
+    const queryBuilder = addressOrNameQueryBuilder(address, 'address', '');
     ors.push(...queryBuilder.map(item => item));
   }
   if (addressContains){
-    const queryBuilder = addressAndNameQueryBuilder(addressContains, 'address', 'contains');
+    const queryBuilder = addressOrNameQueryBuilder(addressContains, 'address', 'contains');
     ors.push(...queryBuilder.map(item => item));
   }
   if (addressExact){
-    const queryBuilder = addressAndNameQueryBuilder(addressExact, 'address', 'exact');
+    const queryBuilder = addressOrNameQueryBuilder(addressExact, 'address', 'exact');
     ors.push(...queryBuilder.map(item => item));
   }
 
@@ -251,15 +264,15 @@ let buildStu3SearchQuery = (args) => {
   }
 
   if (name) {
-    const queryBuilder = addressAndNameQueryBuilder(name, 'name', '');
+    const queryBuilder = addressOrNameQueryBuilder(name, 'name', '');
     ors.push(...queryBuilder.map(item => item));
   }
   if (nameContains) {
-    const queryBuilder = addressAndNameQueryBuilder(nameContains, 'name', 'contains');
+    const queryBuilder = addressOrNameQueryBuilder(nameContains, 'name', 'contains');
     ors.push(...queryBuilder.map(item => item));
   }
   if (nameExact) {
-    const queryBuilder = addressAndNameQueryBuilder(nameExact, 'name', 'exact');
+    const queryBuilder = addressOrNameQueryBuilder(nameExact, 'name', 'exact');
     ors.push(...queryBuilder.map(item => item));
   }
 
@@ -344,7 +357,6 @@ let buildStu3SearchQuery = (args) => {
  */
 module.exports.search = (args, req) =>
   new Promise((resolve, reject) => {
-
     logger.info('Patient >>> search');
     let { base_version } = args;
     let query = {};

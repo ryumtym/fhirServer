@@ -44,6 +44,7 @@
     "@asymmetrik/fhir-sanitize-param": "^1.1.6",
     "@asymmetrik/node-fhir-server-core": "^2.2.4",
     "@asymmetrik/sof-strategy": "^1.1.4",
+    "big.js": "^6.2.1",
     "fast-json-patch": "^2.0.7",
     "moment-timezone": "^0.5.14",
     "mongo": "^0.1.0",

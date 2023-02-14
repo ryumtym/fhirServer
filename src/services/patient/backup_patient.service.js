@@ -36,7 +36,6 @@ const {
 } = require('../../utils/querybuilder.util');
 
 
-
 // const { forEach } = require('../../globals');
 // const { link } = require('@asymmetrik/node-fhir-server-core/dist/server/resources/4_0_0/parameters/patient.parameters');
 
@@ -50,153 +49,294 @@ let getMeta = (base_version) => {
 
 let buildStu3SearchQuery = (args) => {
 
-  // Patient search params
-  const argsCache = {};
-  const key = (srchParam) => {
-    if (argsCache[srchParam]) { return argsCache[srchParam]; }
-    const keys = Object.keys(args).filter(k => k.match(new RegExp(`(${srchParam})(?!-)`)));
-    argsCache[srchParam] = keys;
-    return keys;
-  };
-
-  const modifCache = {};
-  const modif = (str) => {
-    if (modifCache[str]) { return modifCache[str]; }
-    const result = str.match(/([^:]*)(:?)(.*)/)[3];
-    modifCache[str] = result;
-    return result;
-  };
-
   // Common search params
-  const _id = key('_id');
-  const _lastUpdated = key('_lastUpdated');
-  const _tag = key('_tag');
-  const _profile = key('_profile');
-  const _security = key('_security');
+  let { _id, _lastUpdated, _tag } = args;
 
   // Patient search params
-  // todo email, language, phone
-  const active = key('active');
-  const address = key('address');
-  const addressCity = key('address-city');
-  const addressCountry = key('address-country');
-  const addressPostalcode = key('address-postalcode');
-  const addressState = key('address-state');
-  const addressUse = key('address-use');
-  const birthdate = key('birthdate');
-  const death_date = key('death-date');
-  const deceased = key('deceased');
-  const gender = key('gender');
-  const general_practitioner = key('general-practitioner');
-  const name = key('name');
-  const nameFamily = key('family');
-  const nameGiven = key('given');
-  const identifier = key('identifier');
-  const link = key('link');
-  const organization = key('organization');
-  const telecom = key('telecom');
+  let active = args['active'];
+  let activeNot = args['active:not'];
+  let activeMissing = args['active:missing'];
+
+  let address = args['address'];
+  let addressContains = args['address:contains'];
+  let addressExact = args['address:exact'];
+
+  let addressCity = args['address-city'];
+  let addressCityContains = args['address-city:contains'];
+  let addressCityExact = args['address-city:exact'];
+
+  let addressCountry = args['address-country'];
+  let addressCountryContains = args['address-country:contains'];
+  let addressCountryExact = args['address-country:exact'];
+
+  let addressPostalcode = args['address-postalcode'];
+  let addressPostalcodeContains = args['address-postalcode:contains'];
+  let addressPostalcodeExact = args['address-postalcode:exact'];
+
+  let addressState = args['address-state'];
+  let addressStateContains = args['address-state:contains'];
+  let addressStateExact = args['address-state:exact'];
+
+  let addressUse = args['address-use'];
+  let addressUseContains = args['address-use:contains'];
+  let addressUseExact = args['address-use:exact'];
+
+  let birthdate = args['birthdate'];
+  let death_date = args['death-date'];
+
+  let deceased = args['deceased'];
+  let deceasedNot = args['deceased:not'];
+
+  let gender = args['gender'];
+  let genderNot = args['gender:not'];
+
+  let general_practitioner = args['general-practitioner'];
+
+  let identifier = args['identifier'];
+  let identifierNot = args['identifier:not'];
+  let identifierText = args['identifier:text'];
+
+
+  let link = args['link'];
+
+  let name = args['name'];
+  let nameContains = args['name:contains'];
+  let nameExact = args['name:exact'];
+
+  let nameFamily = args['family'];
+  let nameFamilyContains = args['family:contains'];
+  let nameFamilyExact = args['family:exact'];
+
+  let nameGiven = args['given'];
+  let nameGivenContains = args['given:contains'];
+  let nameGivenExact = args['given:exact'];
+
+  let organization = args['organization'];
+
+  let telecom = args['telecom'];
 
 
   let query = {};
   let ors = [];
 
-  // console.log(numQB('eq8e-1', 'test'));
+  console.log(numQB('eq8e-1', 'test'));
 
-  _id?.map(elm => {
-    ors.push(...tokenQueryBuilder(args[elm], '', 'id', '', 'string', modif(elm)));
-  });
+  if (_id) {
+    const queryBuilder = tokenQueryBuilder(_id, '', 'id', '', 'string', '');
+    ors.push(...queryBuilder.map(item => item));
+    // query.id = _id;
+  }
 
-  _lastUpdated?.map(elm => {
-    ors.push(...dateQB(args[elm], 'dateTime', 'meta.lastUpdated'));
-  });
+  if (_lastUpdated){
+    const queryBuilder = dateQB(_lastUpdated, 'dateTime', 'meta.lastUpdated');
+    ors.push(...queryBuilder.map(item => item));
+  }
 
-  _tag?.map(elm => {
-    ors.push(...tokenQueryBuilder(args[elm], 'code', 'meta.tag', '', '', modif(elm)));
-  });
+  if (_tag) {
+    const queryBuilder = tokenQueryBuilder(_tag, '', 'meta.tag', '', '', '');
+    ors.push(...queryBuilder.map(item => item));
+  }
 
-  _profile?.map(elm => {
-    ors.push(...referenceQueryBuilder(args[elm], 'meta.profile', modif(elm)));
-  });
+  if (active) {
+    const queryBuilder = tokenQueryBuilder(active, '', 'active', '', 'boolean', '');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (activeNot){
+    const queryBuilder = tokenQueryBuilder(activeNot, '', 'active', '', 'boolean', 'not');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (activeMissing){ //https://www.mongodb.com/community/forums/t/query-performance-with-null-vs-exists/108103/3
+    const queryBuilder = tokenQueryBuilder(activeMissing, '', 'active', '', 'boolean', 'missing');
+    ors.push(...queryBuilder.map(item => item));
+  }
 
-  _security?.map(elm => {
-    ors.push(...tokenQueryBuilder(args[elm], 'code', 'meta.security', '', '', modif(elm)));
-  });
+  if (address){
+    const queryBuilder = addressOrNameQueryBuilder(address, 'address', '');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (addressContains){
+    const queryBuilder = addressOrNameQueryBuilder(addressContains, 'address', 'contains');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (addressExact){
+    const queryBuilder = addressOrNameQueryBuilder(addressExact, 'address', 'exact');
+    ors.push(...queryBuilder.map(item => item));
+  }
 
-  active?.map(elm => {
-    ors.push(...tokenQueryBuilder(args[elm], '', 'active', '', 'boolean', modif(elm)));
-  });
+  if (addressCity){
+    const queryBuilder = stringQueryBuilder(addressCity, 'address.city', '');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (addressCityContains){
+    const queryBuilder = stringQueryBuilder(addressCityContains, 'address.city', 'contains');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (addressCityExact){
+    const queryBuilder = stringQueryBuilder(addressCityExact, 'address.city', 'exact');
+    ors.push(...queryBuilder.map(item => item));
+  }
 
-  address?.map(elm => {
-    ors.push(...addressOrNameQueryBuilder(args[elm], 'address', modif(elm)));
-  });
+  if (addressCountry){
+    const queryBuilder = stringQueryBuilder(addressCountry, 'address.country', '');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (addressCountryContains){
+    const queryBuilder = stringQueryBuilder(addressCountryContains, 'address.country', 'contains');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (addressCountryExact){
+    const queryBuilder = stringQueryBuilder(addressCountryExact, 'address.country', 'exact');
+    ors.push(...queryBuilder.map(item => item));
+  }
 
-  addressCity?.map(elm => {
-    ors.push(...stringQueryBuilder(args[elm], 'address.city', modif(elm)));
-  });
+  if (addressPostalcode){
+    const queryBuilder = stringQueryBuilder(addressPostalcode, 'address.postalcode', '');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (addressPostalcodeContains){
+    const queryBuilder = stringQueryBuilder(addressPostalcodeContains, 'address.postalcode', 'contains');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (addressPostalcodeExact){
+    const queryBuilder = stringQueryBuilder(addressPostalcodeExact, 'address.postalcode', 'exact');
+    ors.push(...queryBuilder.map(item => item));
+  }
 
-  addressCountry?.map(elm => {
-    ors.push(...stringQueryBuilder(args[elm], 'address.country', modif(elm)));
-  });
+  if (addressState){
+    const queryBuilder = stringQueryBuilder(addressState, 'address.state', '');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (addressStateContains){
+    const queryBuilder = stringQueryBuilder(addressStateContains, 'address.state', 'contains');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (addressStateExact){
+    const queryBuilder = stringQueryBuilder(addressStateExact, 'address.state', 'exact');
+    ors.push(...queryBuilder.map(item => item));
+  }
 
-  addressPostalcode?.map(elm => {
-    ors.push(...stringQueryBuilder(args[elm], 'address.postalcode', modif(elm)));
-  });
+  if (addressUse){
+    const queryBuilder = stringQueryBuilder(addressUse, 'address.use', '');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (addressUseContains){
+    const queryBuilder = stringQueryBuilder(addressUseContains, 'address.use', 'contains');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (addressUseExact){
+    const queryBuilder = stringQueryBuilder(addressUseExact, 'address.use', 'exact');
+    ors.push(...queryBuilder.map(item => item));
+  }
 
-  addressState?.map(elm => {
-    ors.push(...stringQueryBuilder(args[elm], 'address.state', modif(elm)));
-  });
+  if (birthdate) {
+    query.birthDate = dateQueryBuilder(birthdate, 'date', 'birthDate');
+  }
 
-  addressUse?.map(elm => {
-    ors.push(...stringQueryBuilder(args[elm], 'address.use', modif(elm)));
-  });
+  if (death_date) {
+    const queryBuilder = dateQB(death_date, 'dateTime', 'deceasedDateTime');
+    ors.push(...queryBuilder.map(item => item));
+    // query = dateQB(death_date, 'dateTime', 'deceasedDateTime');
+  }
 
-  birthdate?.map(elm => {
-    ors.push(...dateQB(args[elm], 'date', 'birthDate', modif(elm)));
-  });
+  if (deceased) {
+    const queryBuilder = tokenQueryBuilder(deceased, '', 'deceased', '', 'boolean', '');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (deceasedNot){
+    const queryBuilder = tokenQueryBuilder(deceasedNot, '', 'deceased', '', 'boolean', 'not');
+    ors.push(...queryBuilder.map(item => item));
+  }
 
-  death_date?.map(elm => {
-    ors.push(...dateQB(args[elm], 'dateTime', 'deceasedDateTime', modif(elm)));
-  });
+  if (gender) {
+    const queryBuilder = tokenQueryBuilder(gender, '', 'gender', '', 'string', '');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (genderNot){
+    const queryBuilder = tokenQueryBuilder(genderNot, '', 'gender', '', 'string', 'not');
+    ors.push(...queryBuilder.map(item => item));
+  }
 
-  deceased?.map(elm => {
-    ors.push(...tokenQueryBuilder(args[elm], '', 'deceased', '', 'boolean', modif(elm)));
-  });
+  if (general_practitioner) {
+    const queryBuilder = referenceQueryBuilder(general_practitioner, 'generalPractitioner.reference');
+    ors.push(...queryBuilder.map(item => item));
+    // let queryBuilder = referenceQueryBuilder(general_practitioner, 'generalPractitioner.reference');
+    // for (let i in queryBuilder) {
+    //   query[i] = queryBuilder[i];
+    // }
+  }
 
-  gender?.map(elm => {
-    ors.push(...tokenQueryBuilder(args[elm], '', 'gender', '', 'string', modif(elm)));
-  });
+  if (name) {
+    const queryBuilder = addressOrNameQueryBuilder(name, 'name', '');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (nameContains) {
+    const queryBuilder = addressOrNameQueryBuilder(nameContains, 'name', 'contains');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (nameExact) {
+    const queryBuilder = addressOrNameQueryBuilder(nameExact, 'name', 'exact');
+    ors.push(...queryBuilder.map(item => item));
+  }
 
-  general_practitioner?.map(elm => {
-    ors.push(...referenceQueryBuilder(args[elm], 'generalPractitioner.reference', modif(elm)));
-  });
+  if (nameFamily) {
+    const queryBuilder = stringQueryBuilder(nameFamily, 'name.family', '');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (nameFamilyContains) {
+    const queryBuilder = stringQueryBuilder(nameFamilyContains, 'name.family', 'contains');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (nameFamilyExact){
+    const queryBuilder = stringQueryBuilder(nameFamilyExact, 'name.family', 'exact');
+    ors.push(...queryBuilder.map(item => item));
+  }
 
-  name?.map(elm => {
-    ors.push(...addressOrNameQueryBuilder(args[elm], 'name', modif(elm)));
-  });
+  if (nameGiven) {
+    const queryBuilder = stringQueryBuilder(nameGiven, 'name.given', '');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (nameGivenContains) {
+    const queryBuilder = stringQueryBuilder(nameGivenContains, 'name.given', 'contains');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (nameGivenExact){
+    const queryBuilder = stringQueryBuilder(nameGivenExact, 'name.given', 'exact');
+    ors.push(...queryBuilder.map(item => item));
+  }
 
-  nameFamily?.map(elm => {
-    ors.push(...stringQueryBuilder(args[elm], 'name.family', modif(elm)));
-  });
+  if (identifier) {
+    const queryBuilder = tokenQueryBuilder(identifier, 'value', 'identifier', '', 'identifier', '');
+    ors.push(...queryBuilder.map(item => item));
+    // for (let i in queryBuilder) {
+    //   ors.push(queryBuilder[i]);
+    //   // query[i] = queryBuilder[i];
+    // }
+  }
+  if (identifierNot){
+    const queryBuilder = tokenQueryBuilder(identifierNot, 'value', 'identifier', '', 'identifier', 'not');
+    ors.push(...queryBuilder.map(item => item));
+  }
+  if (identifierText){
+    const queryBuilder = tokenQueryBuilder(identifierText, 'value', 'identifier.type.text', '', 'identifier', 'text');
+    ors.push(...queryBuilder.map(item => item));
+  }
 
-  nameGiven?.map(elm => {
-    ors.push(...stringQueryBuilder(args[elm], 'name.given', modif(elm)));
-  });
 
-  identifier?.map(elm => {
-    ors.push(...tokenQueryBuilder(args[elm], 'value', 'identifier', '', 'identifier', modif(elm)));
-  });
+  if (link){
+    const queryBuilder = referenceQueryBuilder(link, 'link.other.reference');
+    ors.push(...queryBuilder.map(item => item));
+  }
 
-  link?.map(elm => {
-    ors.push(...referenceQueryBuilder(args[elm], 'link.other.reference', modif(elm)));
-  });
+  if (organization) {
+    const queryBuilder = referenceQueryBuilder(organization, 'managingOrganization.reference');
+    ors.push(...queryBuilder.map(item => item));
+  }
 
-  organization?.map(elm => {
-    ors.push(...referenceQueryBuilder(args[elm], 'managingOrganization.reference', modif(elm)));
-  });
 
-  telecom?.map(elm => {
-    ors.push(...tokenQueryBuilder(args[elm], 'value', 'telecom', '', '', modif(elm)));
-  });
+  if (telecom){
+    const queryBuilder = tokenQueryBuilder(telecom, 'value', 'telecom', '', '', '');
+    ors.push(...queryBuilder.map(item => item));
+  }
 
   // https://stackoverflow.com/questions/5150061/mongodb-multiple-or-operations
   if (ors.length !== 0) {
@@ -222,7 +362,7 @@ module.exports.search = (args, req) =>
     const resultOptions = r4ResultParamsBuilder.bundle(args, refTypeSrchableParams);
 
     // console.log(Object.keys(args));
-    // console.log(resultOptions);
+    console.log(resultOptions);
     console.log(args);
     // console.log(query);
 

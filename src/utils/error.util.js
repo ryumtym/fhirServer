@@ -5,6 +5,11 @@ const cannotCombineParameterError = (params) => {
   // return new Error(`Cannot combine the [${params}] parameters`);
 };
 
+const cannotUseParameterError = (params) => {
+  return errors.internal({ message: `Cannot use the [${params}] parameters`}, '4_0_0');
+  // return new Error(`Cannot combine the [${params}] parameters`);
+};
+
 /**
  * @name unknownParameterValue
  * @description If an unknown parameter value is obtained, err is returned.
@@ -27,6 +32,7 @@ const invalidParameterError = (param, value, srchableParams) => {
 
 module.exports = {
   cannotCombineParameterError,
+  cannotUseParameterError,
   unknownParameterError,
   invalidParameterError
 };

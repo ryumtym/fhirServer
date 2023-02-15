@@ -52,7 +52,7 @@ let buildStu3SearchQuery = (args) => {
 
   // Patient search params
   const argsCache = {};
-  const key = (srchParam) => {
+  const queryKey = (srchParam) => {
     if (argsCache[srchParam]) { return argsCache[srchParam]; }
     const keys = Object.keys(args).filter(k => k.match(new RegExp(`(${srchParam})(?!-)`)));
     argsCache[srchParam] = keys;
@@ -68,39 +68,39 @@ let buildStu3SearchQuery = (args) => {
   };
 
   // Common search params
-  const _id = key('_id');
-  const _lastUpdated = key('_lastUpdated');
-  const _tag = key('_tag');
-  const _profile = key('_profile');
-  const _security = key('_security');
+  const _id = queryKey('_id');
+  const _lastUpdated = queryKey('_lastUpdated');
+  const _tag = queryKey('_tag');
+  const _profile = queryKey('_profile');
+  const _security = queryKey('_security');
 
-  // Patient search params
+  // Patient search params https://www.hl7.org/fhir/patient.html#search
   // todo email, language, phone
-  const active = key('active');
-  const address = key('address');
-  const addressCity = key('address-city');
-  const addressCountry = key('address-country');
-  const addressPostalcode = key('address-postalcode');
-  const addressState = key('address-state');
-  const addressUse = key('address-use');
-  const birthdate = key('birthdate');
-  const death_date = key('death-date');
-  const deceased = key('deceased');
-  const gender = key('gender');
-  const general_practitioner = key('general-practitioner');
-  const name = key('name');
-  const nameFamily = key('family');
-  const nameGiven = key('given');
-  const identifier = key('identifier');
-  const link = key('link');
-  const organization = key('organization');
-  const telecom = key('telecom');
+  const active = queryKey('active');
+  const address = queryKey('address');
+  const addressCity = queryKey('address-city');
+  const addressCountry = queryKey('address-country');
+  const addressPostalcode = queryKey('address-postalcode');
+  const addressState = queryKey('address-state');
+  const addressUse = queryKey('address-use');
+  const birthdate = queryKey('birthdate');
+  const death_date = queryKey('death-date');
+  const deceased = queryKey('deceased');
+  const family = queryKey('family');
+  const gender = queryKey('gender');
+  const general_practitioner = queryKey('general-practitioner');
+  const given = queryKey('given');
+  const identifier = queryKey('identifier');
+  const link = queryKey('link');
+  const name = queryKey('name');
+  const organization = queryKey('organization');
+  const telecom = queryKey('telecom');
 
 
   let query = {};
   let ors = [];
 
-  // console.log(numQB('eq8e-1', 'test'));
+  console.log(numQB('eq8e-1', 'test'));
 
   _id?.map(elm => {
     ors.push(...tokenQueryBuilder(args[elm], '', 'id', '', 'string', modif(elm)));
@@ -162,6 +162,10 @@ let buildStu3SearchQuery = (args) => {
     ors.push(...tokenQueryBuilder(args[elm], '', 'deceased', '', 'boolean', modif(elm)));
   });
 
+  family?.map(elm => {
+    ors.push(...stringQueryBuilder(args[elm], 'name.family', modif(elm)));
+  });
+
   gender?.map(elm => {
     ors.push(...tokenQueryBuilder(args[elm], '', 'gender', '', 'string', modif(elm)));
   });
@@ -170,15 +174,7 @@ let buildStu3SearchQuery = (args) => {
     ors.push(...referenceQueryBuilder(args[elm], 'generalPractitioner.reference', modif(elm)));
   });
 
-  name?.map(elm => {
-    ors.push(...addressOrNameQueryBuilder(args[elm], 'name', modif(elm)));
-  });
-
-  nameFamily?.map(elm => {
-    ors.push(...stringQueryBuilder(args[elm], 'name.family', modif(elm)));
-  });
-
-  nameGiven?.map(elm => {
+  given?.map(elm => {
     ors.push(...stringQueryBuilder(args[elm], 'name.given', modif(elm)));
   });
 
@@ -188,6 +184,10 @@ let buildStu3SearchQuery = (args) => {
 
   link?.map(elm => {
     ors.push(...referenceQueryBuilder(args[elm], 'link.other.reference', modif(elm)));
+  });
+
+  name?.map(elm => {
+    ors.push(...addressOrNameQueryBuilder(args[elm], 'name', modif(elm)));
   });
 
   organization?.map(elm => {

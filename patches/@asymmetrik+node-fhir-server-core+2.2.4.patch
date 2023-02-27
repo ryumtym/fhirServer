@@ -213,7 +213,7 @@ index db87e28..4baf8fb 100644
      test('should throw an error if given an invalid parameter name', () => {
        expect(() => {
 diff --git a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/sanitize.utils.js b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/sanitize.utils.js
-index 3e6f85c..8e4c31a 100644
+index 3e6f85c..5abb332 100644
 --- a/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/sanitize.utils.js
 +++ b/node_modules/@asymmetrik/node-fhir-server-core/dist/server/utils/sanitize.utils.js
 @@ -4,7 +4,11 @@ const errors = require('./error.utils');
@@ -252,28 +252,34 @@ index 3e6f85c..8e4c31a 100644
        result = typeof value === 'string';
        break;
  
-@@ -83,7 +92,10 @@ let parseParams = req => {
+@@ -83,7 +92,16 @@ let parseParams = req => {
    let isSearch = req.url && req.url.endsWith('_search');
  
    if (req.query && req.method === 'GET' && Object.keys(req.query).length) {
 -    Object.assign(params, req.query);
-+    const orgQuery = qs.parse(req._parsedUrl.query, {decoder: (c) => c})
-+    Object.assign(params, orgQuery );
-+    // Object.assign(params, req.query);        
-+    
++    const decodedQuery = (() => {
++      try {
++        return qs.parse(req._parsedUrl.query, { decoder: (c) => decodeURIComponent(c)  });
++      } catch (err) {
++        return qs.parse(req._parsedUrl.query); // デコードに失敗した場合は、クエリ文字列をデコードせずにパースする
++      }
++    })();
++    Object.assign(params, decodedQuery );
++    // const decodedQuery = qs.parse(req._parsedUrl.query, { decoder: (c) => c });
++    // Object.assign(params, req.query);
    }
  
    if (req.body && ['PUT', 'POST'].includes(req.method) && Object.keys(req.body).length && isSearch) {
-@@ -93,7 +105,7 @@ let parseParams = req => {
+@@ -93,7 +111,7 @@ let parseParams = req => {
    if (req.params && Object.keys(req.params).length) {
      Object.assign(params, req.params);
    }
 -
-+  console.log(params)
++  // console.log(params)
    return params;
  };
  
-@@ -108,6 +120,45 @@ let findMatchWithName = (name = '', params = {}) => {
+@@ -108,6 +126,45 @@ let findMatchWithName = (name = '', params = {}) => {
      value: params[match]
    };
  };
@@ -319,7 +325,7 @@ index 3e6f85c..8e4c31a 100644
  /**
   * @function sanitizeMiddleware
   * @summary Sanitize the arguments by removing extra arguments, escaping some, and
-@@ -119,12 +170,13 @@ let findMatchWithName = (name = '', params = {}) => {
+@@ -119,12 +176,13 @@ let findMatchWithName = (name = '', params = {}) => {
   * @param {boolean} required - Should we throw if this argument is present and invalid, default is false
   */
  
@@ -334,7 +340,7 @@ index 3e6f85c..8e4c31a 100644
      let version_specific_params = config.filter(param => {
        return !param.versions || param.versions === req.params.base_version;
      }); // Check each argument in the config
-@@ -136,12 +188,14 @@ let sanitizeMiddleware = function (config) {
+@@ -136,12 +194,14 @@ let sanitizeMiddleware = function (config) {
          value
        } = findMatchWithName(conf.name, currentArgs); // If the argument is required but not present
  
@@ -350,7 +356,7 @@ index 3e6f85c..8e4c31a 100644
        try {
          if (value) {
            cleanArgs[field] = parseValue(conf.type, value);
-@@ -150,14 +204,24 @@ let sanitizeMiddleware = function (config) {
+@@ -150,14 +210,24 @@ let sanitizeMiddleware = function (config) {
          return next(errors.invalidParameter(conf.name + ' is invalid', req.params.base_version));
        } // If we have the arg and the type is wrong, throw invalid arg
  

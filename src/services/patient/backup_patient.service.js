@@ -32,7 +32,6 @@ const {
   addressOrNameQueryBuilder,
   dateQueryBuilder,
   dateQB,
-  numQB
 } = require('../../utils/querybuilder.util');
 
 
@@ -119,7 +118,6 @@ let buildStu3SearchQuery = (args) => {
   let query = {};
   let ors = [];
 
-  console.log(numQB('eq8e-1', 'test'));
 
   if (_id) {
     const queryBuilder = tokenQueryBuilder(_id, '', 'id', '', 'string', '');

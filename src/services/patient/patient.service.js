@@ -100,101 +100,101 @@ let buildStu3SearchQuery = (args) => {
   let query = {};
   let ors = [];
 
-  console.log(numQB('eq8e-1', 'test'));
+  // console.log(numQB('eq8e-1', 'test'));
 
-  _id?.map(elm => {
+  _id?.forEach(elm => {
     ors.push(...tokenQueryBuilder(args[elm], '', 'id', '', 'string', modif(elm)));
   });
 
-  _lastUpdated?.map(elm => {
+  _lastUpdated?.forEach(elm => {
     ors.push(...dateQB(args[elm], 'dateTime', 'meta.lastUpdated'));
   });
 
-  _tag?.map(elm => {
+  _tag?.forEach(elm => {
     ors.push(...tokenQueryBuilder(args[elm], 'code', 'meta.tag', '', '', modif(elm)));
   });
 
-  _profile?.map(elm => {
+  _profile?.forEach(elm => {
     ors.push(...referenceQueryBuilder(args[elm], 'meta.profile', modif(elm)));
   });
 
-  _security?.map(elm => {
+  _security?.forEach(elm => {
     ors.push(...tokenQueryBuilder(args[elm], 'code', 'meta.security', '', '', modif(elm)));
   });
 
-  active?.map(elm => {
+  active?.forEach(elm => {
     ors.push(...tokenQueryBuilder(args[elm], '', 'active', '', 'boolean', modif(elm)));
   });
 
-  address?.map(elm => {
+  address?.forEach(elm => {
     ors.push(...addressOrNameQueryBuilder(args[elm], 'address', modif(elm)));
   });
 
-  addressCity?.map(elm => {
+  addressCity?.forEach(elm => {
     ors.push(...stringQueryBuilder(args[elm], 'address.city', modif(elm)));
   });
 
-  addressCountry?.map(elm => {
+  addressCountry?.forEach(elm => {
     ors.push(...stringQueryBuilder(args[elm], 'address.country', modif(elm)));
   });
 
-  addressPostalcode?.map(elm => {
+  addressPostalcode?.forEach(elm => {
     ors.push(...stringQueryBuilder(args[elm], 'address.postalcode', modif(elm)));
   });
 
-  addressState?.map(elm => {
+  addressState?.forEach(elm => {
     ors.push(...stringQueryBuilder(args[elm], 'address.state', modif(elm)));
   });
 
-  addressUse?.map(elm => {
+  addressUse?.forEach(elm => {
     ors.push(...stringQueryBuilder(args[elm], 'address.use', modif(elm)));
   });
 
-  birthdate?.map(elm => {
+  birthdate?.forEach(elm => {
     ors.push(...dateQB(args[elm], 'date', 'birthDate', modif(elm)));
   });
 
-  death_date?.map(elm => {
+  death_date?.forEach(elm => {
     ors.push(...dateQB(args[elm], 'dateTime', 'deceasedDateTime', modif(elm)));
   });
 
-  deceased?.map(elm => {
+  deceased?.forEach(elm => {
     ors.push(...tokenQueryBuilder(args[elm], '', 'deceased', '', 'boolean', modif(elm)));
   });
 
-  family?.map(elm => {
+  family?.forEach(elm => {
     ors.push(...stringQueryBuilder(args[elm], 'name.family', modif(elm)));
   });
 
-  gender?.map(elm => {
+  gender?.forEach(elm => {
     ors.push(...tokenQueryBuilder(args[elm], '', 'gender', '', 'string', modif(elm)));
   });
 
-  general_practitioner?.map(elm => {
+  general_practitioner?.forEach(elm => {
     ors.push(...referenceQueryBuilder(args[elm], 'generalPractitioner.reference', modif(elm)));
   });
 
-  given?.map(elm => {
+  given?.forEach(elm => {
     ors.push(...stringQueryBuilder(args[elm], 'name.given', modif(elm)));
   });
 
-  identifier?.map(elm => {
+  identifier?.forEach(elm => {
     ors.push(...tokenQueryBuilder(args[elm], 'value', 'identifier', '', 'identifier', modif(elm)));
   });
 
-  link?.map(elm => {
+  link?.forEach(elm => {
     ors.push(...referenceQueryBuilder(args[elm], 'link.other.reference', modif(elm)));
   });
 
-  name?.map(elm => {
+  name?.forEach(elm => {
     ors.push(...addressOrNameQueryBuilder(args[elm], 'name', modif(elm)));
   });
 
-  organization?.map(elm => {
+  organization?.forEach(elm => {
     ors.push(...referenceQueryBuilder(args[elm], 'managingOrganization.reference', modif(elm)));
   });
 
-  telecom?.map(elm => {
+  telecom?.forEach(elm => {
     ors.push(...tokenQueryBuilder(args[elm], 'value', 'telecom', '', '', modif(elm)));
   });
 

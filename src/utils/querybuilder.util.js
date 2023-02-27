@@ -11,7 +11,6 @@ const { invalidParameterError, unknownParameterError } = require('./error.util')
  * @see http://community.fhir.org/t/searching-dates-and-time-zone/547
  */
 const isValidModifier = (type, modifier) => {
-  // const validModifier = ['', 'not', 'missing', 'text'];
   const validModifiers = {
     date: ['', 'missing'],
     string: ['', 'missing', 'contains', 'exact'],
@@ -81,9 +80,6 @@ const numQB = (target, field) => {
   };
 
   for ( const item of targetTerms ) {
-    // const elements = srchValue.toString().match(regex);
-    // const prefix = elements[1];
-    // const srchNum = Number(elements[2]);
     const [prefix, srchNum] = item.toString().match(regex).slice(1).map(x => isNaN(x) ? x : Number(x));
 
     if (prefix && !isValidPrefix(prefix)){ throw (invalidParameterError('不正なprefix')); }
@@ -117,13 +113,12 @@ const numQB = (target, field) => {
  * @see http://community.fhir.org/t/searching-dates-and-time-zone/547
  */
 let dateQB = function (target, type, path, modifier) {
-  const targetToArray = [].concat(target); //配列化
-  const targetTerms = (targetToArray[0].includes(',')) ? targetToArray[0].split(',') : targetToArray;
-
+  const targetTerms = [].concat(target); //配列化
   const regex = /(^[a-zA-Z]*)(.*)/; // https://regex101.com/ eg: gt2005-03-04 => ['gt2005-03-04', 'gt', '20152005-03-04']
   const mongoQuery = []; //この関数から最終的に吐き出されるmongoQuery
+  if (!target){ return mongoQuery; }
 
-  const findDateBoundary = (prefix, dateStr, format) => { // 比較演算子,日付,フォーマットを基にstartOf,endOf化した日付を返す
+  const findDateBoundary = (prefix, dateStr, dateFormat) => { // 比較演算子,日付,フォーマットを基にstartOf,endOf化した日付を返す
     // eg: moment('2022').startOf('day') -> 2022-01-01
     // eg: moment('2022').endOf('day') -> 2022-12-31
     const granularityMap = {
@@ -135,29 +130,26 @@ let dateQB = function (target, type, path, modifier) {
       'YYYY-MM-DDTHH:mm:ss': 'second',
     };
 
-    const dateGranularity = granularityMap[format];
+    const dateGranularity = granularityMap[dateFormat];
     // 比較演算子が $gt -> startOf $lt -> endOf
     if (prefix === '$gt' || prefix === '$gte'){ return moment(dateStr).startOf(dateGranularity).format('YYYY-MM-DDTHH:mm:ssZ'); }
     if (prefix === '$lt' || prefix === '$lte'){ return moment(dateStr).endOf(dateGranularity).format('YYYY-MM-DDTHH:mm:ssZ'); }
   };
 
   const isISO8601 = (dateStr) => { // iso8601形式か確認
-    // const isBasicFormat = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/.test(dateStr);
     const isUTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z/.test(dateStr);
     const isOtherTimeZone = /^(\d{4})(-\d{2})?(-\d{2})?(?:(T\d{2}:\d{2})(:\d{2})?)?(Z|(\+|-|\s)(\d{2})(:\d{2}))?$/.test(dateStr);
-
     if (!isUTC && !isOtherTimeZone){ return false; }
     else { return true; }
   };
 
   const isValidPrefix = (prefix) => { //演算子が使用可能な値か確認してbool型で返す
-    // if (prefix) {prefix = 'eq'; }
     const validPrefix = [ 'eq', 'ne', 'gt', 'lt', 'ge', 'le', undefined, ''];
     const isValid = validPrefix.some(item => item === prefix);
     return isValid;
   };
 
-  const isValidFormat = (dateStr) => { // 日付値が使用可能なフォーマットか確認してbool型で返す 後でbool返す形に直す
+  const isValidFormat = (dateStr) => { // 日付値が使用可能なフォーマットか確認 後でbool返す形に直す
     const validFormats = ['YYYY', 'YYYY-MM', 'YYYY-MM-DD', 'YYYY-MM-DDTHH', 'YYYY-MM-DDTHH:mm', 'YYYY-MM-DDTHH:mm:ss', 'YYYY-MM-DDTHH:mm:ssZ', 'YYYY-MM-DDTHH:mm:ss.SSSSZ'];
     const isValid = moment(dateStr, validFormats, true).isValid();
     if (isValid) { return moment(dateStr).creationData().format; }
@@ -177,43 +169,45 @@ let dateQB = function (target, type, path, modifier) {
   const toFormat = (dateStr) => moment(dateStr).creationData().format; // 日付をフォーマット化 eg: 2000-01-01 -> YYYY-MM-DD
 
   for ( const elm of targetTerms ) {
-    if (modifier && isValidModifier('date', modifier)){ // modifがmissingで値がtrueかfalseならこれ実行して終了
+
+    if (modifier === 'missing'){ // modifierがmissingで値がtrueかfalseならこれ実行して終了
       if (elm === 'true') {mongoQuery.push({[path]: null}); }
       if (elm === 'false') {mongoQuery.push({[path]: {$ne: null}}); }
       return mongoQuery;
     }
 
-    const elements = elm.match(regex); // 入ってきた値をregexで分割 [, operatorElm, dateElm] = elm.match(regex)
+    const [, prefixValue, dateValue] = elm.match(regex); // 入ってきた値をregexで分割
 
     // 使用可能なprefixか、iso8601か、それぞれboolチェック falseならエラー処理
-    if (!isValidPrefix(elements[1])) { throw (unknownParameterError('Prefix', elements[1], ['eq', 'ne', 'gt', 'lt', 'ge', 'le'] )); }
-    if (!isISO8601(elements[2])){ throw (invalidParameterError('date/time format', elements[2], 'ISO8601 formats only' ));}
+    if (!isValidPrefix(prefixValue)) { throw (unknownParameterError('Prefix', prefixValue, ['eq', 'ne', 'gt', 'lt', 'ge', 'le'] )); }
+    if (!isISO8601(dateValue)){ throw (invalidParameterError('date/time format', dateValue, 'ISO8601 formats only' ));}
+    if (!isValidFormat(dateValue)){ throw (invalidParameterError('date/time format', dateValue, ['YYYY', 'YYYY-MM', 'YYYY-MM-DD', 'YYYY-MM-DDTHH', 'YYYY-MM-DDTHH:mm', 'YYYY-MM-DDTHH:mm:ss', 'YYYY-MM-DDTHH:mm:ssZ', 'YYYY-MM-DDTHH:mm:ss.SSSSZ'] ));}
 
-    const prefix = toMongoPrefix(elements[1]);
-    const date = elements[2];
+    // prefixをmongoで検索する形に変更
+    const mongoPrefix = toMongoPrefix(prefixValue);
 
-    // 検索値が分以下を含んでいて、offsetがない場合は09:00(Asia/Tokyo)に変換
+    // クエリ値を作成、検索値が分以下を含んでいて、offsetがない場合は09:00(Asia/Tokyo)に変換
     // fhirの日付&offset仕様がまだ固まっていないので暫定的な処理 http://community.fhir.org/t/searching-dates-and-time-zone/547
-    const searchValue = (() => {
+    const queryValue = (() => {
       const validFormat1 = ['YYYY', 'YYYY-MM', 'YYYY-MM-DD', 'YYYY-MM-DDTHH', 'YYYY-MM-DDTHH:mm:ssZ', 'YYYY-MM-DDTHH:mm:ss.SSSSZ'];
       const validFormat2 = ['YYYY-MM-DDTHH:mm', 'YYYY-MM-DDTHH:mm:ss'];
-      if (validFormat1.some(v => v === toFormat(date) )){ return date; }
-      if (validFormat2.some(v => v === toFormat(date) )){ return moment(date).utcOffset('+09:00').format('YYYY-MM-DDTHH:mm:ssZ'); }
-      throw (invalidParameterError('date/time format', date, [...validFormat1, ...validFormat2] ));
+      if (validFormat1.some(v => v === toFormat(dateValue) )){ return dateValue; }
+      if (validFormat2.some(v => v === toFormat(dateValue) )){ return moment(dateValue).utcOffset('+09:00').format('YYYY-MM-DDTHH:mm:ssZ'); }
+      throw (invalidParameterError('date/time format', dateValue, [...validFormat1, ...validFormat2] ));
     })();
 
-    // console.log(moment(elements[2]).format());
-    // console.log(moment(elements[2]).utcOffset('+01:00').format('YYYY-MM-DDTHH:mm:ssZ'));
+    // moment(elements[2]).format();
+    // moment(elements[2]).utcOffset('+01:00').format('YYYY-MM-DDTHH:mm:ssZ');
 
     // 秒以下の指定があるかを確認してbool型で返す
-    const hasTimeZone = isValidFormat(searchValue) && ['YYYY-MM-DDTHH:mm:ssZ', 'YYYY-MM-DDTHH:mm:ss.SSSSZ'].some(v => v === toFormat(searchValue) );
+    const hasTimeZone = ['YYYY-MM-DDTHH:mm:ssZ', 'YYYY-MM-DDTHH:mm:ss.SSSSZ'].some(v => v === toFormat(queryValue) );
 
     const queryTerm = (() => { // queryを作成
-      if (prefix === '$eq' && hasTimeZone) { return { [prefix]: searchValue }; }
-      else if (prefix === '$eq' && !hasTimeZone){ return { $regex: '^' + searchValue }; }
-      else if (prefix === '$ne' && hasTimeZone){ return { [prefix]: searchValue }; }
-      else if (prefix === '$ne' && !hasTimeZone) { return { $not: { $regex: '^' + searchValue} }; }
-      else { return { [prefix]: findDateBoundary(prefix, searchValue, toFormat(searchValue))}; }
+      if (mongoPrefix === '$eq' && hasTimeZone) { return { [mongoPrefix]: queryValue }; }
+      else if (mongoPrefix === '$eq' && !hasTimeZone){ return { $regex: '^' + queryValue }; }
+      else if (mongoPrefix === '$ne' && hasTimeZone){ return { [mongoPrefix]: queryValue }; }
+      else if (mongoPrefix === '$ne' && !hasTimeZone) { return { $not: { $regex: '^' + queryValue} }; }
+      else { return { [mongoPrefix]: findDateBoundary(mongoPrefix, queryValue, toFormat(queryValue))}; }
     })();
 
     mongoQuery.push({[path]: queryTerm});
@@ -229,40 +223,45 @@ let dateQB = function (target, type, path, modifier) {
  * @description brute force method of matching human names. Splits the input and checks to see if every piece matches to
  * at least 1 part of the name field using regexs. Ignores case
  * @param {string} target
- * @param {string} type 'address' or 'name'
+ * @param {string} field 'address' or 'name'
  * @param {string} modif https://www.hl7.org/fhir/search.html#string
  * @return {array} ors
  */
-let addressOrNameQueryBuilder = function (target, type, modifier) {
+let addressOrNameQueryBuilder = function (target, field, modifier) {
   isValidModifier('string', modifier);
   const andQueryBundle = [];
   const orQueryBundle = [];
   const mongoQuery = [];
   const targetToArray = [].concat(target); //配列化
-  const regexTerms = targetToArray.map(elm => elm.replace(/[\\(\\)\\-\\_\\+\\=\\/\\.]/g, '\\$&')); // ()^_+=/.を全てエスケープ
+  const targetTerms = targetToArray.map(elm => elm.replace(/[\\(\\)\\-\\_\\+\\=\\/\\.]/g, '\\$&')); // ()^_+=/.を全てエスケープ
+  if (!target){ return mongoQuery; }
 
-  const targetTerms = (regexTerms[0].includes(',')) ? regexTerms[0].split(',') : regexTerms;
-  const insertionArray = targetTerms.length === 1 ? andQueryBundle : orQueryBundle;
-
-  const nameFields = ['name.text', 'name.family', 'name.given', 'name.suffix', 'name.prefix'];
-  const addressFields = ['address.line', 'address.city', 'address.district', 'address.state', 'address.postalCode', 'address.country'];
-  const fields = (type === 'name') ? nameFields : addressFields;
-
-  const patternMatchQuery = (value, modif) => { // 修飾子に応じて検索値を作成する
+  const buildQueryValue = (value, modif) => { // 修飾子に応じて検索値を作成する
     if (modif === '') { return { $regex: '^' + value, $options: 'i' }; } //前方一致
     if (modif === 'contains') { return { $regex: value, $options: 'i' }; } // 部分一致
     if (modif === 'exact') { return { $regex: '^' + value + '$' }; } //完全一致
-    if (modif === 'missing' && target === 'true') { return null; }
-    if (modif === 'missing' && target === 'false') { return {$ne: null}; }
+    if (modif === 'missing' && value === 'true') { return null; }
+    if (modif === 'missing' && value === 'false') { return { '$ne': null }; }
   };
 
-  for ( const item of targetTerms ) {
-    for ( const path of fields) {
-      insertionArray.push({[path]: patternMatchQuery(item, modifier)});
+  const queryKeyFields = (() => {
+    if (modifier === 'missing') { return [field]; }
+    if (field === 'name'){ return ['name.text', 'name.family', 'name.given', 'name.suffix', 'name.prefix']; }
+    if (field === 'address'){ return ['address.line', 'address.city', 'address.district', 'address.state', 'address.postalCode', 'address.country']; }
+  })();
+
+  for (const term of targetTerms) {
+    // const itemList = decodeURI(term).split(/,/);
+    const itemList = term.split(/,/);
+    const insertionArray = (itemList.length === 1) ? andQueryBundle : orQueryBundle;
+    for (const item of itemList){
+      const value = buildQueryValue(item, modifier);
+      const resultQuery = queryKeyFields.map(key => ({ [key]: value }));
+      insertionArray.push({'$or': resultQuery});
     }
   }
 
-  if (andQueryBundle.length){ mongoQuery.push({'$or': andQueryBundle}); }
+  if (andQueryBundle.length){ mongoQuery.push({'$and': andQueryBundle}); }
   if (orQueryBundle.length ){ mongoQuery.push({'$or': orQueryBundle }); }
 
   return mongoQuery;
@@ -282,19 +281,27 @@ let addressOrNameQueryBuilder = function (target, type, modifier) {
   const orQueryBundle = [];
   const mongoQuery = [];
   const targetToArray = [].concat(target); //配列化
-  const regexTerms = targetToArray.map(elm => elm.replace(/[\\(\\)\\-\\_\\+\\=\\/\\.]/g, '\\$&')); // ()^_+=/.を全てエスケープ
-  const targetTerms = (regexTerms[0].includes(',')) ? regexTerms[0].split(',') : regexTerms;
-  const insertionArray = targetTerms.length === 1 ? andQueryBundle : orQueryBundle;
+  const targetTerms = targetToArray.map(elm => elm.replace(/[\\(\\)\\-\\_\\+\\=\\/\\.]/g, '\\$&')); // ()^_+=/.を全てエスケープ
+  if (!target){ return mongoQuery; }
 
-  const patternMatchQuery = (value, modif) => { // 修飾子に応じた検索値を作成する
+  const buildQueryValue = (value, modif) => { // modifierに応じた検索値を作成する
     if (modif === '') { return { $regex: '^' + value, $options: 'i' }; } //前方一致
     if (modif === 'contains') { return { $regex: value, $options: 'i' }; } // 部分一致
     if (modif === 'exact') { return { $regex: '^' + value + '$' }; } //完全一致
-    if (modif === 'missing' && target === 'true') { return null; } // https://www.hl7.org/fhir/search.html#modifiers
-    if (modif === 'missing' && target === 'false') { return {$ne: null}; }
+    if (modif === 'missing' && value === 'true') { return null; } // https://www.hl7.org/fhir/search.html#modifiers
+    if (modif === 'missing' && value === 'false') { return {$ne: null}; }
   };
 
-  for ( const item of targetTerms ) { insertionArray.push({[field]: patternMatchQuery(item, modifier)}); }
+
+  for (const term of targetTerms){ // 渡された値(target)をカンマでsplitし、もし配列数が1ならandQueryBundleに、配列数が1以外なら orQueryBundleに格納
+    const itemList = term.split(/,/);
+    const insertionArray = itemList.length === 1 ? andQueryBundle : orQueryBundle;
+    for (const item of itemList){
+      insertionArray.push({
+        [field]: buildQueryValue(item, modifier)
+      });
+    }
+  }
 
   if (andQueryBundle.length){ mongoQuery.push({'$and': andQueryBundle}); }
   if (orQueryBundle.length ){ mongoQuery.push({'$or': orQueryBundle }); }
@@ -313,42 +320,49 @@ let addressOrNameQueryBuilder = function (target, type, modifier) {
  * @see https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Global_Objects/Set/has
  * @see https://stackoverflow.com/questions/263965/how-can-i-convert-a-string-to-boolean-in-javascript
 */
+
 let tokenQueryBuilder = function (target, type, field, required, dataType, modifier) {
   isValidModifier('token', modifier);
   const andQueryBundle = [];
   const orQueryBundle = [];
   const mongoQuery = [];
-  const targetToArray = [].concat(target);
-  const targetTerms = (targetToArray[0].includes(',')) ? targetToArray[0].split(',') : targetToArray;
-  const insertionArray = targetTerms.length === 1 ? andQueryBundle : orQueryBundle;
+  const targetTerms = [].concat(target);
+  if (!target){ return mongoQuery; }
 
-  const buildQueryValues = (v, path) => { // dataTypeに応じてmondoDBで使用するクエリのvalueを作成する
+  const buildQuery = (v, path, modif) => { // dataTypeに応じてmondoDBで使用するクエリのvalueを作成する
+    if (modif === 'missing' && v === 'true') { return {[path]: null}; }
+    if (modif === 'missing' && v === 'false') { return {[path]: {$ne: null}}; }
+
     if (dataType === 'boolean'){ // 文字列を真偽値に置き換え、もしできなかったらerror処理
       try { return {[path]: JSON.parse(v.toLowerCase())}; }
       catch { throw unknownParameterError(path, target, 'boolean type'); }
-    } else if (dataType === 'string' || dataType === 'identifier' && modifier === 'text'){
-      return {[path]: v };
-    } else { // "|" が存在する場合は、v の値を "|" の左右に分ける 存在しない場合は、system=null
-      const result = [];
-      const [system, value] = v.includes('|') ? v.split('|') : [null, v];
-      if (system){ result.push({ [`${path}.system` ]: system}); }
-      if (value) { result.push({ [`${path}.${type}`]: value }); }
-      return result;
     }
+
+    if (dataType === 'string' || dataType === 'identifier' && modif === 'text'){
+      return {[path]: v };
+    }
+
+    // "|" が存在する場合は、v の値を "|" の左右に分ける 存在しない場合は、system=null
+    const result = [];
+    const [system, value] = v.includes('|') ? v.split('|') : [null, v];
+    if (system){ result.push({ [`${path}.system` ]: system}); }
+    if (value) { result.push({ [`${path}.${type}`]: value }); }
+    return result;
+
   };
 
-  const createQuery = (operator, source, modif, path) => {
-    if (modif === '' || modif === 'text') { return {[operator]: source}; }
-    if (modif === 'not') { return {['$nor']: source}; }
-    if (modif === 'missing' && target === 'true') { return {[path]: null}; }
-    if (modif === 'missing' && target === 'false') { return {[path]: {$ne: null}}; }
-  };
+  for (const term of targetTerms){
+    const itemList = term.split(/,/);
+    const insertionArray = itemList.length === 1 ? andQueryBundle : orQueryBundle;
+    for (const item of itemList){
+      insertionArray.push(buildQuery(item, field, modifier));
+    }
+  }
 
-
-  for ( const item of targetTerms ) { insertionArray.push(buildQueryValues(item, field)); }
-
-  if (andQueryBundle?.length){ mongoQuery.push( createQuery(['$and'], andQueryBundle.flat(), modifier, field) ); }
-  if (orQueryBundle?.length) { mongoQuery.push( createQuery(['$or'], orQueryBundle.flat(), modifier, field) ); }
+  if (andQueryBundle?.length && modifier === 'not'){ mongoQuery.push( {['$nor']: andQueryBundle.flat()} ); }
+  if (andQueryBundle?.length && modifier !== 'not'){ mongoQuery.push( {['$and']: andQueryBundle.flat()} ); }
+  if (orQueryBundle?.length && modifier === 'not') { mongoQuery.push( {['$nor']: orQueryBundle.flat()} ); }
+  if (orQueryBundle?.length && modifier !== 'not') { mongoQuery.push( {['$or']: orQueryBundle.flat()} ); }
   return mongoQuery;
 };
 
@@ -362,28 +376,33 @@ let referenceQueryBuilder = function (target, field, modifier) {
   const andQueryBundle = [];
   const orQueryBundle = [];
   const mongoQuery = [];
-  const targetToArray = [].concat(target);
-  const targetTerms = (targetToArray[0].includes(',')) ? targetToArray[0].split(',') : targetToArray;
-  const insertionArray = targetTerms.length === 1 ? andQueryBundle : orQueryBundle;
+  const targetTerms = [].concat(target);
+  if (!target){ return mongoQuery; }
 
-  const createQuery = (v, path, modif) => {
-    const urlRegex = /https?(.*)?\/(\w+\/.+)$/; //https?:(.*)?\/(.+)\/(.+)\?(.+)=(.+)$
-    const matchURL = v.match(urlRegex);
+  const buildQueryValue = (v, modif) => {
+    const isURL = /^https?:\/\/[\w/:%#$&?()~.=+-]+$/.test(v); //https?:(.*)?\/(.+)\/(.+)\?(.+)=(.+)$
 
-    if (modif === 'missing' && target === 'true') { return {[path]: null}; }
-    if (modif === 'missing' && target === 'false') { return {[path]: {$ne: null}}; }
-    if (matchURL) { // Check if target is a url
-      return {[path]: v}; // return {[path]: match[2]};
+    if (modif === 'missing' && v === 'true') {
+      return null;
+    } else if (modif === 'missing' && v === 'false') {
+      return { $ne: null };
+    } else if (isURL) {
+      return v; // Check if target is a url  //return {[path]: match[2]};
     } else if (v.includes('/')) { // target = type/id
       let [type, id] = v.split('/');
-      return {[path]: `${type}/${id}`};
-    } else { // target = id The type may be there so we need to check the end of the field for the id
-      return {[path]: { $regex: new RegExp(`${v}$`) }};
+      return `${type}/${id}`;
+    } else {
+      return { $regex: new RegExp(`${v}$`) }; // else -> target = id The type may be there so we need to check the end of the field for the id
     }
-
   };
 
-  for ( const item of targetTerms ) { insertionArray.push(createQuery(item, field, modifier)); }
+  for (const term of targetTerms) { // 渡された値(target)をカンマでsplitし、もし配列数が1ならandQueryBundleに、配列数が1以外なら orQueryBundleに格納
+    const itemList = term.split(/,/);
+    const insertionArray = itemList.length === 1 ? andQueryBundle : orQueryBundle;
+    for (const item of itemList){
+      insertionArray.push({ [field]: buildQueryValue(item, modifier) });
+    }
+  }
 
   if (andQueryBundle?.length){ mongoQuery.push({['$and']: andQueryBundle}); }
   if (orQueryBundle?.length) { mongoQuery.push({['$or']: orQueryBundle}); }
@@ -932,6 +951,6 @@ module.exports = {
   compositeQueryBuilder,
   dateQueryBuilder,
   dateQB,
-  numQB,
-  uriQB
+  // numQB,
+  // uriQB
 };

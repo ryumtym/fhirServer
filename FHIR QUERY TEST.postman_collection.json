@@ -1,0 +1,848 @@
+{
+	"info": {
+		"_postman_id": "8272b089-8ee4-4957-a802-c6418dff0946",
+		"name": "FHIR QUERY TEST",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "16469770"
+	},
+	"item": [
+		{
+			"name": "Date",
+			"item": [
+				{
+					"name": "birthdate=1974",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?birthdate=1974",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "birthdate",
+									"value": "1974"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "birthdate=gt1900-01-01&birthdate=lt2011",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?birthdate=gt1900-01-01&birthdate=lt2011",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "birthdate",
+									"value": "gt1900-01-01"
+								},
+								{
+									"key": "birthdate",
+									"value": "lt2011"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "birthdate:missing=true",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?birthdate:missing=true",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "birthdate:missing",
+									"value": "true"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "death-date=eq2015",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?death-date=eq2015",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "death-date",
+									"value": "eq2015"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "death-date=lt1930-06",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?death-date=lt1930-06",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "death-date",
+									"value": "lt1930-06"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "death-date=lt1930-06-27",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?death-date=lt1930-06-27",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "death-date",
+									"value": "lt1930-06-27"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "death-date=gt2015-02-14T12:41:59",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?death-date=gt2015-02-14T12:41:59",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "death-date",
+									"value": "gt2015-02-14T12:41:59"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "String",
+			"item": [
+				{
+					"name": "name=山田,lHXkReMQfy",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?name=山田,lHXkReMQfy",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "name",
+									"value": "山田,lHXkReMQfy"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "name=山田&name=lHXkReMQfy",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?name=山田&name=lHXkReMQfy",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "name",
+									"value": "山田"
+								},
+								{
+									"key": "name",
+									"value": "lHXkReMQfy"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "name:missing=true",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?death-date=eq2015",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "death-date",
+									"value": "eq2015"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "name:missing=true,false",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?death-date=eq2015",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "death-date",
+									"value": "eq2015"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "name:missing=true&name:missing=false",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?death-date=eq2015",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "death-date",
+									"value": "eq2015"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "family:contains=sow",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?death-date=eq2015",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "death-date",
+									"value": "eq2015"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "family:exact=Notsowell",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?death-date=eq2015",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "death-date",
+									"value": "eq2015"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Reference",
+			"item": [
+				{
+					"name": "organization=Organization/a387fae08e76fb04e0adc61c749eb4e7d1d8ff3c&general-practitioner=Organization/634661a7708c2200074f8dc5",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?organization=Organization/a387fae08e76fb04e0adc61c749eb4e7d1d8ff3c&general-practitioner=Organization/634661a7708c2200074f8dc5",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "organization",
+									"value": "Organization/a387fae08e76fb04e0adc61c749eb4e7d1d8ff3c"
+								},
+								{
+									"key": "general-practitioner",
+									"value": "Organization/634661a7708c2200074f8dc5"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "organization=",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?death-date=eq2015",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "death-date",
+									"value": "eq2015"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "general-practitioner=Practitioner/a387fae08e76fb04e0adc61c749eb4e7d1d8ff3c&general-practitioner=Organization/a387fae08e76fb04e0adc61c749eb4e7d1d8ff3c",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?death-date=eq2015",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "death-date",
+									"value": "eq2015"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "organization:missing=true",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?death-date=eq2015",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "death-date",
+									"value": "eq2015"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "organization:missing=true,false",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?death-date=eq2015",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "death-date",
+									"value": "eq2015"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "organization:missing=true&organization:missing=false",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?death-date=eq2015",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "death-date",
+									"value": "eq2015"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Token",
+			"item": [
+				{
+					"name": "identifier=|999999999",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?identifier=|999999999",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "identifier",
+									"value": "|999999999"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "identifier=999999999,12345",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?identifier=|999999999",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "identifier",
+									"value": "|999999999"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "identifier=urn:oid:1.2.36.146.595.217.0.1|12345",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?identifier=urn:oid:1.2.36.146.595.217.0.1|12345",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "identifier",
+									"value": "urn:oid:1.2.36.146.595.217.0.1|12345"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "identifier:missing=true",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?identifier:missing=true",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "identifier:missing",
+									"value": "true"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "identifier:missing=true,false",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?death-date=eq2015",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "death-date",
+									"value": "eq2015"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "identifier:missing=true&identifier:missing=false",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?death-date=eq2015",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "death-date",
+									"value": "eq2015"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "active:not=true,false",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?death-date=eq2015",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "death-date",
+									"value": "eq2015"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "gender=male",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?death-date=eq2015",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "death-date",
+									"value": "eq2015"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "gender:not=female",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?death-date=eq2015",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "death-date",
+									"value": "eq2015"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "gender:missing=true",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?death-date=eq2015",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "death-date",
+									"value": "eq2015"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "gender=male,unknown&gender=female",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/4_0_0/Patient?death-date=eq2015",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"4_0_0",
+								"Patient"
+							],
+							"query": [
+								{
+									"key": "death-date",
+									"value": "eq2015"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}

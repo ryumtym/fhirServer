@@ -30,9 +30,8 @@ const {
   tokenQueryBuilder,
   referenceQueryBuilder,
   addressOrNameQueryBuilder,
-  dateQueryBuilder,
   dateQB,
-  numQB
+  compositeQueryBuilder
 } = require('../../utils/querybuilder.util');
 
 
@@ -54,10 +53,16 @@ let buildStu3SearchQuery = (args) => {
   const argsCache = {};
   const queryKey = (srchParam) => {
     if (argsCache[srchParam]) { return argsCache[srchParam]; }
-    const keys = Object.keys(args).filter(k => k.match(new RegExp(`(${srchParam})(?!-)`)));
+    const keys = Object.keys(args).filter(k => k === srchParam || k.startsWith(`${srchParam}:`));
     argsCache[srchParam] = keys;
     return keys;
   };
+  // const queryKey = (srchParam) => {
+  //   if (argsCache[srchParam]) { return argsCache[srchParam]; }
+  //   const keys = Object.keys(args).filter(k => k.match(new RegExp(`(${srchParam})(?!-)`)));
+  //   argsCache[srchParam] = keys;
+  //   return keys;
+  // };
 
   const modifCache = {};
   const modif = (str) => {
@@ -100,10 +105,8 @@ let buildStu3SearchQuery = (args) => {
   let query = {};
   let ors = [];
 
-  // console.log(numQB('eq8e-1', 'test'));
-
   _id?.forEach(elm => {
-    ors.push(...tokenQueryBuilder(args[elm], '', 'id', '', 'string', modif(elm)));
+    ors.push(...tokenQueryBuilder(args[elm], 'id', '', 'string', modif(elm)));
   });
 
   _lastUpdated?.forEach(elm => {
@@ -111,7 +114,7 @@ let buildStu3SearchQuery = (args) => {
   });
 
   _tag?.forEach(elm => {
-    ors.push(...tokenQueryBuilder(args[elm], 'code', 'meta.tag', '', '', modif(elm)));
+    ors.push(...tokenQueryBuilder(args[elm], 'meta.tag', '', 'Coding', modif(elm)));
   });
 
   _profile?.forEach(elm => {
@@ -119,11 +122,11 @@ let buildStu3SearchQuery = (args) => {
   });
 
   _security?.forEach(elm => {
-    ors.push(...tokenQueryBuilder(args[elm], 'code', 'meta.security', '', '', modif(elm)));
+    ors.push(...tokenQueryBuilder(args[elm], 'meta.security', '', 'Coding', modif(elm)));
   });
 
   active?.forEach(elm => {
-    ors.push(...tokenQueryBuilder(args[elm], '', 'active', '', 'boolean', modif(elm)));
+    ors.push(...tokenQueryBuilder(args[elm], 'active', '', 'boolean', modif(elm)));
   });
 
   address?.forEach(elm => {
@@ -159,7 +162,7 @@ let buildStu3SearchQuery = (args) => {
   });
 
   deceased?.forEach(elm => {
-    ors.push(...tokenQueryBuilder(args[elm], '', 'deceased', '', 'boolean', modif(elm)));
+    ors.push(...tokenQueryBuilder(args[elm], 'deceased', '', 'boolean', modif(elm)));
   });
 
   family?.forEach(elm => {
@@ -167,7 +170,7 @@ let buildStu3SearchQuery = (args) => {
   });
 
   gender?.forEach(elm => {
-    ors.push(...tokenQueryBuilder(args[elm], '', 'gender', '', 'string', modif(elm)));
+    ors.push(...tokenQueryBuilder(args[elm], 'gender', '', 'code', modif(elm)));
   });
 
   general_practitioner?.forEach(elm => {
@@ -179,7 +182,7 @@ let buildStu3SearchQuery = (args) => {
   });
 
   identifier?.forEach(elm => {
-    ors.push(...tokenQueryBuilder(args[elm], 'value', 'identifier', '', 'identifier', modif(elm)));
+    ors.push(...tokenQueryBuilder(args[elm], 'identifier', '', 'Identifier', modif(elm)));
   });
 
   link?.forEach(elm => {
@@ -195,7 +198,7 @@ let buildStu3SearchQuery = (args) => {
   });
 
   telecom?.forEach(elm => {
-    ors.push(...tokenQueryBuilder(args[elm], 'value', 'telecom', '', '', modif(elm)));
+    ors.push(...tokenQueryBuilder(args[elm], 'telecom', '', 'ContactPoint', modif(elm)));
   });
 
   // https://stackoverflow.com/questions/5150061/mongodb-multiple-or-operations
@@ -333,7 +336,6 @@ module.exports.search = (args, req) =>
     };
 
     resolve(search());
-
   });
 
 module.exports.searchById = (args) =>
@@ -400,10 +402,8 @@ module.exports.create = (args, { req }) =>
         logger.error('Error with Patient.create: ', err);
         return reject(err);
       }
-
       // Save the resource to history
       let history_collection = db.collection(`${COLLECTION.PATIENT}_${base_version}_History`);
-
       // Insert our patient record to history but don't assign _id
       return history_collection.insertOne(history_doc, (err2) => {
         if (err2) {

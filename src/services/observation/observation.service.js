@@ -19,7 +19,8 @@ const {
   nameQueryBuilder,
   dateQueryBuilder,
   quantityQueryBuilder,
-  compositeQueryBuilder
+  compositeQueryBuilder,
+  dateQB
 } = require('../../utils/querybuilder.util');
 
 let getObservation = (base_version) => {
@@ -31,304 +32,292 @@ let getMeta = (base_version) => {
 };
 
 let buildRelease4SearchQuery = (args) => {
-  // Common search params
-  let { _content, _format, _id, _lastUpdated, _profile, _query, _security, _tag } = args;
 
-  // Search Result params
-  let { _INCLUDE, _REVINCLUDE, _SORT, _COUNT, _SUMMARY, _ELEMENTS, _CONTAINED, _CONTAINEDTYPED } =
-    args;
+  // Patient search params
+  const argsCache = {};
+  const queryKey = (srchParam) => {
+    if (argsCache[srchParam]) { return argsCache[srchParam]; }
+    const keys = Object.keys(args).filter(k => k === srchParam || k.startsWith(`${srchParam}:`));
+    argsCache[srchParam] = keys;
+    return keys;
+  };
+  // const queryKey = (srchParam) => {
+  //   if (argsCache[srchParam]) { return argsCache[srchParam]; }
+  //   const keys = Object.keys(args).filter(k => k.match(new RegExp(`(${srchParam})(?!-)`)));
+  //   argsCache[srchParam] = keys;
+  //   return keys;
+  // };
+
+  const modifCache = {};
+  const modif = (str) => {
+    if (modifCache[str]) { return modifCache[str]; }
+    const result = str.match(/([^:]*)(:?)(.*)/)[3];
+    modifCache[str] = result;
+    return result;
+  };
+
+  // Common search params
+  const _id = queryKey('_id');
+  const _lastUpdated = queryKey('_lastUpdated');
+  const _tag = queryKey('_tag');
+  const _profile = queryKey('_profile');
+  const _security = queryKey('_security');
 
   // Observation search params
-  let based_on = args['based-on'];
-  let category = args['category'];
-  let code = args['code'];
-  let code_value_concept = args['code-value-concept'];
-  let code_value_date = args['code-value-date'];
-  let code_value_quantity = args['code-value-quantity'];
-  let code_value_string = args['code-value-string'];
-  let combo_code = args['combo-code'];
-  let combo_code_value_concept = args['combo-code-value-concept'];
-  let combo_code_value_quantity = args['combo-code-value-quantity'];
-  let combo_data_absent_reason = args['combo-data-absent-reason'];
-  let combo_value_concept = args['combo-value-concept'];
-  let combo_value_quantity = args['combo-value-quantity'];
-  let component_code = args['component-code'];
-  let component_code_value_concept = args['component-code-value-concept'];
-  let component_code_value_quantity = args['component-code-value-quantity'];
-  let component_data_absent_reason = args['component-data-absent-reason'];
-  let component_value_concept = args['component-value-concept'];
-  let component_value_quantity = args['component-value-quantity'];
-  // let _context = args['_context'];
-  let data_absent_reason = args['data-absent-reason'];
+  const based_on = queryKey('based_on');
+  const category = queryKey('category');
+  const code = queryKey('code');
+  const code_value_concept = queryKey('code-value-concept');
+  const code_value_date = queryKey('code-value-date');
+  const code_value_quantity = queryKey('code-value-quantity');
+  const code_value_string = queryKey('code-value-string');
+  const combo_code = queryKey('combo-code');
+  const combo_code_value_concept = queryKey('combo-code-value-concept');
+  const combo_code_value_quantity = queryKey('combo-code-value-quantity');
+  const combo_data_absent_reason = queryKey('combo-data-absent-reason');
+  const combo_value_concept = queryKey('combo-value-concept');
+  const combo_value_quantity = queryKey('combo-value-quantity');
+  const component_code = queryKey('component-code');
+  const component_code_value_concept = queryKey('component-code-value-concept');
+  const component_code_value_quantity = queryKey('component-code-value-quantity');
+  const component_data_absent_reason = queryKey('component-data-absent-reason');
+  const component_value_concept = queryKey('component-value-concept');
+  const component_value_quantity = queryKey('component-value-quantity');
+  const data_absent_reason = queryKey('data-absent-reason');
   let date = args['date'];
-  let derived_from = args['derived-from'];
-  let device = args['device'];
-  let encounter = args['encounter'];
-  let focus = args['focus'];
-  let has_member = args['has-member'];
-  let identifier = args['identifier'];
-  let method = args['method'];
-  let partof = args['partof'];
-  let patient = args['patient'];
-  let performer = args['performer'];
-  let specimen = args['specimen'];
-  let status = args['status'];
-  let subject = args['subject'];
-  let value_concept = args['value-concept'];
-  let value_date = args['value-date'];
-  let value_quantity = args['value-quantity'];
-  let value_string = args['value-string'];
+  const derived_from = queryKey('derived-from');
+  const device = queryKey('device');
+  const encounter = queryKey('encounter');
+  const focus = queryKey('focus');
+  const has_member = queryKey('has-member');
+  const identifier = queryKey('identifier');
+  const method = queryKey('method');
+  const partof = queryKey('part-of');
+  const patient = queryKey('patient');
+  const performer = queryKey('performer');
+  const specimen = queryKey('specimen');
+  const status = queryKey('status');
+  const subject = queryKey('subject');
+  const value_concept = queryKey('value-concept');
+  const value_date = queryKey('value-date');
+  const value_quantity = queryKey('value-quantity');
+  const value_string = queryKey('value-string');
 
 
   let query = {};
   let ors = [];
 
 
-  if (ors.length !== 0) {
-    query.$and = ors;
-  }
+  _id?.forEach(elm => {
+    ors.push(...tokenQueryBuilder(args[elm], 'id', '', 'string', modif(elm)));
+  });
 
-  if (_id) {
-    query.id = _id;
-  }
+  _lastUpdated?.forEach(elm => {
+    ors.push(...dateQB(args[elm], 'dateTime', 'meta.lastUpdated'));
+  });
 
+  _tag?.forEach(elm => {
+    ors.push(...tokenQueryBuilder(args[elm], 'meta.tag', '', 'Coding', modif(elm)));
+  });
 
+  _profile?.forEach(elm => {
+    ors.push(...referenceQueryBuilder(args[elm], 'meta.profile', modif(elm)));
+  });
 
-  if (based_on) {
-    let queryBuilder = referenceQueryBuilder(based_on, 'basedOn');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
+  _security?.forEach(elm => {
+    ors.push(...tokenQueryBuilder(args[elm], 'meta.security', '', 'Coding', modif(elm)));
+  });
 
-  if (category) {
-    let queryBuilder = tokenQueryBuilder(category, 'value', 'category', '');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
+  based_on?.forEach(elm => {
+    ors.push(...referenceQueryBuilder(args[elm], 'basedOn', modif(elm)));
+  });
 
-  if (code) {
-    let queryBuilder = tokenQueryBuilder(code, 'coding.code', 'code');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-    console.log(query)
-  }
+  category?.forEach(elm => {
+    ors.push(...tokenQueryBuilder(args[elm], 'category', '', 'CodeableConcept', modif(elm)));
+  });
 
-  if (code_value_concept) {
-    query['code.value.concept'] = compositeQueryBuilder(code_value_concept,'component.code.coding|token','');
-  //   code: code
-  // value-concept: value.as(CodeableConcept)
+  code?.forEach(elm => {
+    ors.push(...tokenQueryBuilder(args[elm], 'code', '', 'CodeableConcept', modif(elm)));
+  });
 
-  component.valueQuantity|quantity
-  }
+  code_value_concept?.forEach(elm => {
+    ors.push(...compositeQueryBuilder(args[elm], 'code|token', 'valueCodeableConcept|token'));
+  });
 
-  if (code_value_date) {
-    query['code.value.date'] = compositeQueryBuilder(code_value_date,'code.value.date','');
-  }
+  code_value_date?.forEach(elm => {
+    ors.push(...compositeQueryBuilder(args[elm], 'code|token', 'valueDateTime|date'));
+  });
 
-  if (code_value_quantity) {
-    query['code.value.quantity'] = compositeQueryBuilder(code_value_quantity,'code.value.quantity','');
-  }
+  code_value_quantity?.forEach(elm => {
+    ors.push(...compositeQueryBuilder(args[elm], 'code|token', 'valueQuantity|quantity'));
+  });
 
-  if (code_value_string) {
-    query['code.value.string'] = compositeQueryBuilder(code_value_string,'code.value.string','');
-  }
+  code_value_string?.forEach(elm => {
+    ors.push(...compositeQueryBuilder(args[elm], 'code|token', 'valueString|string'));
+  });
 
-  if (combo_code) {
-    let queryBuilder = tokenQueryBuilder(combo_code, 'value', 'combo_code', '');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
+  combo_code?.forEach(elm => {
+    const multiple = [
+      tokenQueryBuilder(args[elm], 'component.code', '', 'CodeableConcept', modif(elm)),
+      tokenQueryBuilder(args[elm], 'code', '', 'CodeableConcept', modif(elm))
+    ];
+    ors.push(...[{['$or']: multiple.flat()}]);
+  });
 
-  if (combo_code_value_concept) {
-    query['combo.code.value.concept'] = compositeQueryBuilder(combo_code_value_concept,'combo.code.value.concept','');
-  }
+  combo_code_value_concept?.forEach(elm => {
+    ors.push(...compositeQueryBuilder(args[elm], 'component.code|token', 'component.valueCodeableConcept|token'));
+  });
 
-  if (combo_code_value_quantity) {
-    query['combo.code.value.quantity'] = compositeQueryBuilder(combo_code_value_quantity,'combo.code.value.quantity','');
-  }
+  combo_code_value_quantity?.forEach(elm => {
+    ors.push(...compositeQueryBuilder(args[elm], 'component.code|token', 'component.valueQuantity|quantity'));
+  });
 
-  if (combo_data_absent_reason) {
-    let queryBuilder = tokenQueryBuilder(combo_data_absent_reason, 'value', 'dataAbsentReason', '');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
+  combo_data_absent_reason?.forEach(elm => {
+    const multiple = [
+      tokenQueryBuilder(args[elm], 'dataAbsentReason', '', 'CodeableConcept', modif(elm)),
+      tokenQueryBuilder(args[elm], 'component.dataAbsentReason', '', 'CodeableConcept', modif(elm))
+    ];
+    ors.push(...[{['$or']: multiple.flat()}]);
+  });
 
-  if (combo_value_concept) {
-    let queryBuilder = tokenQueryBuilder(combo_value_concept, 'value', 'combo_value_concept', '');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
+  combo_value_concept?.forEach(elm => {
+    const multiple = [
+      tokenQueryBuilder(args[elm], 'valueCodeableConcept', '', 'CodeableConcept', modif(elm)),
+      tokenQueryBuilder(args[elm], 'component.valueCodeableConcept', '', 'CodeableConcept', modif(elm))
+    ];
+    ors.push(...[{['$or']: multiple.flat()}]);
+  });
 
-  if (combo_value_quantity) {
-    let queryBuilder = quantityQueryBuilder(combo_value_quantity, 'value', 'combo_value_quantity', '');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
+  // これが正しいのかわからない ドキュメントを読んでもsampledDataの正しい検索方法/結果がわからない
+  combo_value_quantity?.forEach(elm => {
+    const multiple = [
+      quantityQueryBuilder(args[elm], 'valueQuantity', modif(elm)),
+      quantityQueryBuilder(args[elm], 'component.valueQuantity', modif(elm)),
+      quantityQueryBuilder(args[elm], 'component.valueSampledData.origin', modif(elm))
+    ];
+    ors.push(...[{['$or']: multiple.flat()}]);
+  });
 
-  if (component_code) {
-    let queryBuilder = tokenQueryBuilder(component_code, 'value', 'component.code', '');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-      // console.log("sec/service/observ/compo_code" + query[i]);
-    }
-  }
+  component_code?.forEach(elm => {
+    ors.push(...tokenQueryBuilder(args[elm], 'component.code', '', 'CodeableConcept', modif(elm)));
+  });
 
-  if (component_code_value_concept) {
-    query['component-code-value-concept'] = compositeQueryBuilder(component_code_value_concept,'component-code-value-concept','');
-  }
+  component_code_value_concept?.forEach(elm => {
+    ors.push(...compositeQueryBuilder(args[elm], 'component.code|token', 'component.valueCodeableConcept|token'));
+  });
 
-  if (component_code_value_quantity) {
-    let queryBuilder = compositeQueryBuilder(component_code_value_quantity,'component.code.coding|token','component.valueQuantity|quantity');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
+  component_code_value_quantity?.forEach(elm => {
+    ors.push(...compositeQueryBuilder(args[elm], 'component.code|token', 'component.valueQuantity|quantity'));
+  });
 
-  if (component_data_absent_reason) {
-    let queryBuilder = tokenQueryBuilder(component_data_absent_reason, 'value', 'component-data-absent-reason', '');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
+  component_data_absent_reason?.forEach(elm => {
+    ors.push(...tokenQueryBuilder(args[elm], 'component.dataAbsentReason', '', 'CodeableConcept', modif(elm)));
+  });
 
-  if (component_value_concept) {
-    let queryBuilder = tokenQueryBuilder(component_value_concept, 'value', 'component-value-concept', '');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
+  component_value_concept?.forEach(elm => {
+    ors.push(...tokenQueryBuilder(args[elm], 'component.valueCodeableConcept', '', 'CodeableConcept', modif(elm)));
+  });
 
-  if (component_value_concept) {
-    let queryBuilder = tokenQueryBuilder(component_value_concept, 'value', 'component-value-concept', '');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
+  component_value_quantity?.forEach(elm => {
+    ors.push(...quantityQueryBuilder(args[elm], 'component.valueQuantity', modif(elm)));
+  });
 
-  if (component_value_quantity) {
-    let queryBuilder = quantityQueryBuilder(component_value_quantity, 'value', 'component_value_quantity', '');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
-
-  if (data_absent_reason) {
-    let queryBuilder = tokenQueryBuilder(data_absent_reason, 'value', 'data-absent-reason', '');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
+  data_absent_reason?.forEach(elm => {
+    ors.push(...tokenQueryBuilder(args[elm], 'dataAbsentReason', '', 'CodeableConcept', modif(elm)));
+  });
 
   if (date) {
-    query.effectiveDateTime = dateQueryBuilder(date, 'date', 'effective');
+    ors.push({
+      '$or': [
+        dateQueryBuilder(date, 'dateTime', 'effectiveDateTime'),
+        dateQueryBuilder(date, 'dateTime', 'effectiveInstant'),
+        dateQueryBuilder(date, 'dateTime', 'effectivePeriod')
+        // { effectiveDateTime: dateQueryBuilder(date, 'dateTime', 'effective') },
+        // { effectiveInstant: dateQueryBuilder(date, 'instant', 'effective')},
+        // { effectivePeriod: dateQueryBuilder(date, 'period', 'effective')}
+      ]
+    });
+
+    // query.effectiveDateTime = dateQueryBuilder(date, 'date', 'effective');
+    // query.effectiveInstant = dateQueryBuilder(date, 'date', 'effective');
+    // query.effectivePeriod = dateQueryBuilder(date, 'date', 'effective');
     // console.log(query.effectiveDateTime)
   }
 
-  if (derived_from) {
-    let queryBuilder = referenceQueryBuilder(derived_from, 'derived-from');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
+  derived_from?.forEach(elm => {
+    ors.push(...referenceQueryBuilder(args[elm], 'derivedFrom.reference', modif(elm)));
+  });
 
-  if (device) {
-    let queryBuilder = referenceQueryBuilder(device, 'device.reference');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
+  device?.forEach(elm => {
+    ors.push(...referenceQueryBuilder(args[elm], 'device.reference', modif(elm)));
+  });
 
-  if (encounter) {
-    let queryBuilder = referenceQueryBuilder(encounter, 'encounter.reference');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
+  encounter?.forEach(elm => {
+    ors.push(...referenceQueryBuilder(args[elm], 'encounter.reference', modif(elm)));
+  });
 
-  if (focus) {
-    let queryBuilder = referenceQueryBuilder(focus, 'focus');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
+  focus?.forEach(elm => {
+    ors.push(...referenceQueryBuilder(args[elm], 'focus.reference', modif(elm)));
+  });
 
-  if (has_member) {
-    let queryBuilder = referenceQueryBuilder(has_member, 'has-member');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
+  has_member?.forEach(elm => {
+    ors.push(...referenceQueryBuilder(args[elm], 'hasMember.reference', modif(elm)));
+  });
 
-  if (identifier) {
-    let queryBuilder = tokenQueryBuilder(identifier, 'value', 'identifier', '');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
+  identifier?.forEach(elm => {
+    ors.push(...tokenQueryBuilder(args[elm], 'identifier', '', 'Identifier', modif(elm)));
+  });
 
-  if (method) {
-    let queryBuilder = tokenQueryBuilder(method, 'value', 'method', '');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
+  method?.forEach(elm => {
+    ors.push(...tokenQueryBuilder(args[elm], 'method', '', 'CodeableConcept', modif(elm)));
+  });
 
-  if (partof) {
-    let queryBuilder = referenceQueryBuilder(partof, 'partof.reference');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
+  partof?.forEach(elm => {
+    ors.push(...referenceQueryBuilder(args[elm], 'partOf.reference', modif(elm)));
+  });
 
-  if (patient) {
-    let queryBuilder = referenceQueryBuilder(patient, 'patient');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
+  patient?.forEach(elm => {
+    ors.push(...referenceQueryBuilder(args[elm], 'subject.reference', modif(elm), 'Patient'));
+  });
 
-  if (performer) {
-    let queryBuilder = referenceQueryBuilder(performer, 'performer');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
+  performer?.forEach(elm => {
+    ors.push(...referenceQueryBuilder(args[elm], 'performer.reference', modif(elm)));
+  });
 
-  if (specimen) {
-    let queryBuilder = referenceQueryBuilder(specimen, 'specimen');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
+  specimen?.forEach(elm => {
+    ors.push(...referenceQueryBuilder(args[elm], 'specimen.reference', modif(elm)));
+  });
 
-  if (subject) {
-    let queryBuilder = referenceQueryBuilder(subject, 'subject.reference');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
+  status?.forEach(elm => {
+    ors.push(...tokenQueryBuilder(args[elm], 'status', '', 'code', modif(elm)));
+  });
 
-  if (value_date) {
-    let queryBuilder = quantityQueryBuilder(value_date,'valueDate');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
+  subject?.forEach(elm => {
+    ors.push(...referenceQueryBuilder(args[elm], 'subject.reference', modif(elm)));
+  });
 
-  if (value_quantity) {
-    let queryBuilder = quantityQueryBuilder(value_quantity,'valueQuantity');
-    for (let i in queryBuilder) {
-      query[i] = queryBuilder[i];
-    }
-  }
+  value_concept?.forEach(elm => {
+    ors.push(...tokenQueryBuilder(args[elm], 'valueCodeableConcept', '', 'CodeableConcept', modif(elm)));
+  });
 
+  value_date?.forEach(elm => {
+    ors.push(...dateQB(args[elm], 'dateTime', 'valueDateTime'));
+  });
+
+  value_quantity?.forEach(elm => {
+    ors.push(...quantityQueryBuilder(args[elm], 'valueQuantity', modif(elm)));
+  });
+
+  value_string?.forEach(elm => {
+    ors.push(...stringQueryBuilder(args[elm], 'valueString', modif(elm)));
+  });
+
+
+  // https://stackoverflow.com/questions/5150061/mongodb-multiple-or-operations
+  if (ors.length !== 0) {
+    query.$and = ors.flat();
+  }
+  console.log(JSON.stringify(query));
 
   return query;
 };
@@ -354,7 +343,7 @@ module.exports.search = (args) =>
     let collection = db.collection(`${COLLECTION.OBSERVATION}_${base_version}`);
     let Observation = getObservation(base_version);
 
-    console.log(query)
+    // console.log(query)
  
     collection.find(query).toArray().then(
       (observations) => {

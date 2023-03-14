@@ -110,7 +110,7 @@ let buildStu3SearchQuery = (args) => {
   });
 
   _lastUpdated?.forEach(elm => {
-    ors.push(...dateQB(args[elm], 'dateTime', 'meta.lastUpdated'));
+    ors.push(...dateQB(args[elm], ['date'], 'meta.lastUpdated'));
   });
 
   _tag?.forEach(elm => {
@@ -154,11 +154,11 @@ let buildStu3SearchQuery = (args) => {
   });
 
   birthdate?.forEach(elm => {
-    ors.push(...dateQB(args[elm], 'date', 'birthDate', modif(elm)));
+    ors.push(...dateQB(args[elm], ['date'], 'birthDate', modif(elm)));
   });
 
   death_date?.forEach(elm => {
-    ors.push(...dateQB(args[elm], 'dateTime', 'deceasedDateTime', modif(elm)));
+    ors.push(...dateQB(args[elm], ['dateTime'], 'deceased', modif(elm)));
   });
 
   deceased?.forEach(elm => {

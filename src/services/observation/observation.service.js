@@ -20,7 +20,7 @@ const {
   dateQueryBuilder,
   quantityQueryBuilder,
   compositeQueryBuilder,
-  dateQB
+  dateQB,
 } = require('../../utils/querybuilder.util');
 
 let getObservation = (base_version) => {
@@ -41,12 +41,6 @@ let buildRelease4SearchQuery = (args) => {
     argsCache[srchParam] = keys;
     return keys;
   };
-  // const queryKey = (srchParam) => {
-  //   if (argsCache[srchParam]) { return argsCache[srchParam]; }
-  //   const keys = Object.keys(args).filter(k => k.match(new RegExp(`(${srchParam})(?!-)`)));
-  //   argsCache[srchParam] = keys;
-  //   return keys;
-  // };
 
   const modifCache = {};
   const modif = (str) => {
@@ -84,7 +78,8 @@ let buildRelease4SearchQuery = (args) => {
   const component_value_concept = queryKey('component-value-concept');
   const component_value_quantity = queryKey('component-value-quantity');
   const data_absent_reason = queryKey('data-absent-reason');
-  let date = args['date'];
+  const date = queryKey('date');
+  // let date = args['date'];
   const derived_from = queryKey('derived-from');
   const device = queryKey('device');
   const encounter = queryKey('encounter');
@@ -113,7 +108,7 @@ let buildRelease4SearchQuery = (args) => {
   });
 
   _lastUpdated?.forEach(elm => {
-    ors.push(...dateQB(args[elm], 'dateTime', 'meta.lastUpdated'));
+    ors.push(...dateQB(args[elm], ['date'], 'meta.lastUpdated'));
   });
 
   _tag?.forEach(elm => {
@@ -145,7 +140,7 @@ let buildRelease4SearchQuery = (args) => {
   });
 
   code_value_date?.forEach(elm => {
-    ors.push(...compositeQueryBuilder(args[elm], 'code|token', 'valueDateTime|date'));
+    ors.push(...compositeQueryBuilder(args[elm], 'code|token', 'value|date'));
   });
 
   code_value_quantity?.forEach(elm => {
@@ -226,23 +221,13 @@ let buildRelease4SearchQuery = (args) => {
     ors.push(...tokenQueryBuilder(args[elm], 'dataAbsentReason', '', 'CodeableConcept', modif(elm)));
   });
 
-  if (date) {
-    ors.push({
-      '$or': [
-        dateQueryBuilder(date, 'dateTime', 'effectiveDateTime'),
-        dateQueryBuilder(date, 'dateTime', 'effectiveInstant'),
-        dateQueryBuilder(date, 'dateTime', 'effectivePeriod')
-        // { effectiveDateTime: dateQueryBuilder(date, 'dateTime', 'effective') },
-        // { effectiveInstant: dateQueryBuilder(date, 'instant', 'effective')},
-        // { effectivePeriod: dateQueryBuilder(date, 'period', 'effective')}
-      ]
-    });
+  // date?.forEach(elm => {
+  //   ors.push(...dateQB(args[elm], ['dateTime', 'Period', 'Timing', 'instant'], 'effective', modif(elm)));
+  // });
 
-    // query.effectiveDateTime = dateQueryBuilder(date, 'date', 'effective');
-    // query.effectiveInstant = dateQueryBuilder(date, 'date', 'effective');
-    // query.effectivePeriod = dateQueryBuilder(date, 'date', 'effective');
-    // console.log(query.effectiveDateTime)
-  }
+    date?.forEach(elm => {
+    ors.push(...dateQB(args[elm], ['Period'], 'effective', modif(elm)));
+  });
 
   derived_from?.forEach(elm => {
     ors.push(...referenceQueryBuilder(args[elm], 'derivedFrom.reference', modif(elm)));
@@ -301,7 +286,7 @@ let buildRelease4SearchQuery = (args) => {
   });
 
   value_date?.forEach(elm => {
-    ors.push(...dateQB(args[elm], 'dateTime', 'valueDateTime'));
+    ors.push(...dateQB(args[elm], ['dateTime', 'Period'], 'value'));
   });
 
   value_quantity?.forEach(elm => {

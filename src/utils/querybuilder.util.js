@@ -119,6 +119,7 @@ const numQB = (target, field) => {
  * @return a mongo regex query
  * @see http://community.fhir.org/t/searching-dates-and-time-zone/547
  * @see https://chat.fhir.org/#narrow/stream/179166-implementers/topic/Period
+ * @see http://community.fhir.org/t/difference-in-behavior-between-datetime-and-period-in-date-type-prefix-processing/4320
  * @see gt means target.end > search.end
  * @see ge means target.end > search.end or target.start > search.start
 
@@ -139,6 +140,7 @@ let dateQB = function (target, dateType, field, modifier) {
     Timing: 'Timing'
   };
 
+
   const findDateBoundary = (dateBoundary, dateStr, dateFormat) => { // start/end,日付,フォーマットを基にstartOf,endOf化した日付を返す
     // eg: moment('2022').startOf('day') -> 2022-01-01
     // eg: moment('2022').endOf('day') -> 2022-12-31
@@ -158,32 +160,32 @@ let dateQB = function (target, dateType, field, modifier) {
     if ( dateBoundary === 'end' ) { return moment(dateStr).endOf(dateGranularity).format('YYYY-MM-DDTHH:mm:ssZ'); }
   };
 
-  const adjustDateByGranularity = (dateStr, dateFormat, adjustment) => {
-    const granularityMap = {
-      'YYYY': 'year',
-      'YYYY-MM': 'month',
-      'YYYY-MM-DD': 'day',
-      'YYYY-MM-DDTHH': 'hour',
-      'YYYY-MM-DDTHH:mm': 'minute',
-      'YYYY-MM-DDTHH:mm:ss': 'second',
-    };
+  // const adjustDateByGranularity = (dateStr, dateFormat, adjustment) => {
+  //   const granularityMap = {
+  //     'YYYY': 'year',
+  //     'YYYY-MM': 'month',
+  //     'YYYY-MM-DD': 'day',
+  //     'YYYY-MM-DDTHH': 'hour',
+  //     'YYYY-MM-DDTHH:mm': 'minute',
+  //     'YYYY-MM-DDTHH:mm:ss': 'second',
+  //   };
 
-    const dateGranularity = granularityMap[dateFormat];
+  //   const dateGranularity = granularityMap[dateFormat];
 
-    return moment(dateStr).add(adjustment, dateGranularity).format(dateFormat);
-  };
+  //   return moment(dateStr).add(adjustment, dateGranularity).format(dateFormat);
+  // };
 
-  const findNextDate = (dateStr, dateFormat) => {
-    // dateStrとdateFormatに応じて翌年/翌月/翌日...を作成する
-    // example: findNextDate('2022', 'YYYY') -> 2023, findNextDate('2022-02', 'YYYY-MM') -> 2022-03
-    return adjustDateByGranularity(dateStr, dateFormat, 1);
-  };
+  // const findNextDate = (dateStr, dateFormat) => {
+  //   // dateStrとdateFormatに応じて翌年/翌月/翌日...を作成する
+  //   // example: findNextDate('2022', 'YYYY') -> 2023, findNextDate('2022-02', 'YYYY-MM') -> 2022-03
+  //   return adjustDateByGranularity(dateStr, dateFormat, 1);
+  // };
 
-  const findPrevDate = (dateStr, dateFormat) => {
-    // dateStrとdateFormatに応じて昨年/昨月/昨日...を作成する
-    // example: findNextDate('2022', 'YYYY') -> 2021, findNextDate('2022-02', 'YYYY-MM') -> 2022-01
-    return adjustDateByGranularity(dateStr, dateFormat, -1);
-  };
+  // const findPrevDate = (dateStr, dateFormat) => {
+  //   // dateStrとdateFormatに応じて昨年/昨月/昨日...を作成する
+  //   // example: findNextDate('2022', 'YYYY') -> 2021, findNextDate('2022-02', 'YYYY-MM') -> 2022-01
+  //   return adjustDateByGranularity(dateStr, dateFormat, -1);
+  // };
 
   const isISO8601 = (dateStr) => { // iso8601形式か確認
     const isUTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z/.test(dateStr);
@@ -218,165 +220,162 @@ let dateQB = function (target, dateType, field, modifier) {
 
   const toFormat = (dateStr) => moment(dateStr).creationData().format; // 日付をフォーマット化 eg: 2000-01-01 -> YYYY-MM-DD
 
-  const queryFromPrefix = (path, prefix, v) => {
-
-    const formatDate = toFormat(v); // 日付をフォーマット化
-    const hasTimeZone = ['YYYY-MM-DDTHH:mm:ssZ', 'YYYY-MM-DDTHH:mm:ss.SSSSZ'].some(elm => elm === formatDate ); // 秒以下の指定があるかを確認してbool型で返す
-
-    if (prefix === '$eq' && hasTimeZone) {
-      return { [path]: { [prefix]: v } };
-    }
-
-    if (prefix === '$eq' && !hasTimeZone) {
-      return { [path]: { $regex: '^' + v } };
-    }
-
-    if (prefix === '$ne' && hasTimeZone) {
-      return { [path]: { '$not': { [prefix]: v } } };
-    }
-
-    if (prefix === '$ne' && !hasTimeZone) {
-      return { [path]: { '$not': { $regex: '^' + v } } };
-    }
-
-    if (prefix === '$gt') {
-      return { [path]: { [prefix]: findNextDate(v, formatDate) } };
-    }
-
-    if (prefix === '$lt') {
-      return { [path]: { [prefix]: findPrevDate(v, formatDate) } };
-    }
-  };
-
   const buildMongoQuery = (path, prefix, value, type) => {
     const formatDate = toFormat(value); // 日付をフォーマット化
     const hasTimeZone = ['YYYY-MM-DDTHH:mm:ssZ', 'YYYY-MM-DDTHH:mm:ss.SSSSZ'].some(elm => elm === formatDate ); // 秒以下の指定があるかを確認してbool型で返す
     const fieldType = `${path}${fieldTypes[type]}`;
 
-    // console.log(fieldType, prefix, value, );
+    const query = {
+      ['$and']: [ { [fieldType]: { $exists: true } } ]
+    };
 
-    if (type === 'Period') {
+    // console.log(fieldType, prefix, value, );
+    if (type === 'date' || type === 'dateTime' || type === 'instant') {
 
       if (prefix === '$eq' && hasTimeZone) {
-        return {
-          ['$and']: [
-            { [fieldType]: { $exists: true } },
-            { [`${fieldType}.start`]: { [prefix]: value } },
-            { [`${fieldType}.end`]: { [prefix]: value } }
-          ]
-        };
+        query['$and'].push({ [fieldType]: { [prefix]: value } });
       }
 
       if (prefix === '$eq' && !hasTimeZone) {
-        return {
-          ['$and']: [
-            { [fieldType]: { $exists: true } },
-            { [`${fieldType}.start`]: { $regex: '^' + value } },
-            { [`${fieldType}.end`]: { $regex: '^' + value } }
-          ]
-        };
+        query['$and'].push({ [fieldType]: { $regex: '^' + value } });
       }
 
       if (prefix === '$ne' && hasTimeZone) {
-        return {
-          ['$and']: [
-            { [fieldType]: { $exists: true } },
-            { [`${fieldType}.start`]: { '$not': { [prefix]: value } } },
-            { [`${fieldType}.end`]: { '$not': { [prefix]: value } } }
-          ]
-        };
+        query['$and'].push({ [fieldType]: { '$not': { [prefix]: value } } });
       }
 
       if (prefix === '$ne' && !hasTimeZone) {
-        return {
-          ['$and']: [
-            { [fieldType]: { $exists: true } },
-            { [`${fieldType}.start`]: { '$not': { $regex: '^' + value } } },
-            { [`${fieldType}.end`]: { '$not': { $regex: '^' + value } } }
-          ]
-        };
+        query['$and'].push({ [fieldType]: { '$not': { $regex: '^' + value } } });
       }
 
       if (prefix === '$gt') {
-        return {
-          ['$and']: [
-            { [fieldType]: { $exists: true } },
-            { [`${fieldType}.end`]: { [prefix]: findNextDate(value, formatDate) } }
-          ]
-        };
+        query['$and'].push({ [fieldType]: { [prefix]: findDateBoundary('end', value, formatDate) } });
       }
 
       if (prefix === '$gte') {
-        return {
-          ['$and']: [
-            { [fieldType]: { $exists: true } },
-            {
-              ['$or']: [
-                { [`${fieldType}.start`]: { [prefix]: findNextDate(value, formatDate) } },
-                { [`${fieldType}.end`]: { [prefix]: findNextDate(value, formatDate) } }
-              ]
-            }
-          ]
-        };
+        query['$and'].push({ [fieldType]: { [prefix]: findDateBoundary('start', value, formatDate) } });
       }
 
       if (prefix === '$lt') {
-        return {
-          ['$and']: [
-            { [fieldType]: { $exists: true } },
-            { [`${fieldType}.start`]: { [prefix]: value } }
-          ]
-        };
+        query['$and'].push({ [fieldType]: { [prefix]: findDateBoundary('start', value, formatDate) } });
       }
 
       if (prefix === '$lte') {
-        return {
-          ['$and']: [
-            { [fieldType]: { $exists: true } },
-            {
-              ['$or']: [
-                { [`${fieldType}.start`]: { [prefix]: findPrevDate(value, formatDate) } },
-                { [`${fieldType}.end`]: { [prefix]: findPrevDate(value, formatDate) } }
-              ]
-            }
-          ]
-        };
+        query['$and'].push({ [fieldType]: { [prefix]: findDateBoundary('end', value, formatDate) } });
+
       }
 
     }
 
+    if (type === 'Period') {
 
+      if (prefix === '$eq' && hasTimeZone) {
+        query['$and'].push({ [`${fieldType}.start`]: { [prefix]: value } });
+        query['$and'].push({ [`${fieldType}.end`]: { [prefix]: value } });
+      }
 
-    // if (type === 'date' || type === 'dateTime' || type === 'instant') {
-    //   return {
-    //     ['$and']: [
-    //       { [fieldType]: { $exists: true } },
-    //       queryFromPrefix(fieldType, prefix, value, ),
-    //     ]
-    //   };
-    // }
+      if (prefix === '$eq' && !hasTimeZone) {
+        query['$and'].push({ [`${fieldType}.start`]: { $regex: '^' + value } });
+        query['$and'].push({ [`${fieldType}.end`]: { $regex: '^' + value } });
+      }
 
-    // if (type === 'Period') {
-    //   return {
-    //     ['$and']: [
-    //       { [fieldType]: { $exists: true } },
-    //       queryFromPrefix(`${fieldType}.start`, prefix, value),
-    //       queryFromPrefix(`${fieldType}.end`, prefix, value)
-    //     ]
-    //   };
-    // }
+      if (prefix === '$ne' && hasTimeZone) {
+        query['$and'].push({ [`${fieldType}.start`]: { '$not': { [prefix]: value } } });
+        query['$and'].push({ [`${fieldType}.end`]: { '$not': { [prefix]: value } } });
+      }
 
-    // if (type === 'Timing') {
-    //   return {
-    //     ['$and']: [
-    //       { [fieldType]: { $exists: true } },
-    //       queryFromPrefix(`${fieldType}.event`, prefix, value),
-    //       queryFromPrefix(`${fieldType}.repeat.boundsPeriod.start`, prefix, value),
-    //       queryFromPrefix(`${fieldType}.repeat.boundsPeriod.end`, prefix, value),
-    //     ]
-    //   };
-    // }
+      if (prefix === '$ne' && !hasTimeZone) {
+        query['$and'].push({ [`${fieldType}.start`]: { '$not': { $regex: '^' + value } } });
+        query['$and'].push({ [`${fieldType}.end`]: { '$not': { $regex: '^' + value } } });
+      }
 
+      if (prefix === '$gt') {
+        query['$and'].push({ [`${fieldType}.start`]: { [prefix]: findDateBoundary('end', value, formatDate) } });
+      }
+
+      if (prefix === '$gte') {
+        query['$and'].push({
+          [`${fieldType}.start`]: { [prefix]: findDateBoundary('start', value, formatDate) }
+          // ['$or']: [
+          //   { [`${fieldType}.start`]: { [prefix]: findDateBoundary('start', value, formatDate) } },
+          //   { [`${fieldType}.end`]: { [prefix]: findDateBoundary('start', value, formatDate) } }
+          // ]
+        });
+
+      }
+
+      if (prefix === '$lt') {
+        query['$and'].push({ [`${fieldType}.end`]: { [prefix]: findDateBoundary('start', value, formatDate) } });
+      }
+
+      if (prefix === '$lte') {
+        query['$and'].push({
+          [`${fieldType}.end`]: { [prefix]: findDateBoundary('start', value, formatDate) }
+          // ['$or']: [
+          //   { [`${fieldType}.start`]: { [prefix]: findDateBoundary('end', value, formatDate) } },
+          //   { [`${fieldType}.end`]: { [prefix]: findDateBoundary('end', value, formatDate) } }
+          // ]
+        });
+      }
+
+    }
+
+    if (type === 'Timing') {
+
+      if (prefix === '$eq' && hasTimeZone) {
+        query['$and'].push({ [`${fieldType}.event`]: { [prefix]: value } });
+        query['$and'].push({ [`${fieldType}.repeat.boundsPeriod.start`]: { [prefix]: value } });
+        query['$and'].push({ [`${fieldType}.repeat.boundsPeriod.end`]: { [prefix]: value } });
+      }
+
+      if (prefix === '$eq' && !hasTimeZone) {
+        query['$and'].push({ [`${fieldType}.event`]: { $regex: '^' + value } });
+        query['$and'].push({ [`${fieldType}.repeat.boundsPeriod.start`]: { $regex: '^' + value } });
+        query['$and'].push({ [`${fieldType}.repeat.boundsPeriod.end`]: { $regex: '^' + value } });
+      }
+
+      if (prefix === '$ne' && hasTimeZone) {
+        query['$and'].push({ [`${fieldType}.event`]: { '$not': { [prefix]: value } } });
+        query['$and'].push({ [`${fieldType}.repeat.boundsPeriod.start`]: { '$not': { [prefix]: value } } });
+        query['$and'].push({ [`${fieldType}.repeat.boundsPeriod.end`]: { '$not': { [prefix]: value } } });
+      }
+
+      if (prefix === '$ne' && !hasTimeZone) {
+        query['$and'].push({ [`${fieldType}.event`]: { '$not': { $regex: '^' + value } } });
+        query['$and'].push({ [`${fieldType}.repeat.boundsPeriod.start`]: { '$not': { $regex: '^' + value } } });
+        query['$and'].push({ [`${fieldType}.repeat.boundsPeriod.end`]: { '$not': { $regex: '^' + value } } });
+      }
+
+      if (prefix === '$gt') {
+        query['$and'].push({ [`${fieldType}.repeat.boundsPeriod.end`]: { [prefix]: findDateBoundary('end', value, formatDate) } });
+      }
+
+      if (prefix === '$gte') {
+        query['$and'].push({
+          ['$or']: [
+            { [`${fieldType}.event`]: { [prefix]: findDateBoundary('start', value, formatDate) } },
+            { [`${fieldType}.repeat.boundsPeriod.start`]: { [prefix]: findDateBoundary('start', value, formatDate) } },
+            { [`${fieldType}.repeat.boundsPeriod.end`]: { [prefix]: findDateBoundary('start', value, formatDate) } }
+          ]
+        });
+      }
+
+      if (prefix === '$lt') {
+        query['$and'].push({ [`${fieldType}.repeat.boundsPeriod.start`]: { [prefix]: findDateBoundary('start', value, formatDate) } });
+      }
+
+      if (prefix === '$lte') {
+        query['$and'].push({
+          ['$or']: [
+            { [`${fieldType}.event`]: { [prefix]: findDateBoundary('end', value, formatDate) } },
+            { [`${fieldType}.repeat.boundsPeriod.start`]: { [prefix]: findDateBoundary('end', value, formatDate) } },
+            { [`${fieldType}.repeat.boundsPeriod.end`]: { [prefix]: findDateBoundary('end', value, formatDate) } }
+          ]
+        });
+      }
+
+    }
+    return query;
   };
 
 
@@ -387,20 +386,18 @@ let dateQB = function (target, dateType, field, modifier) {
     for (const item of itemList) {
 
       if (modifier === 'missing') {
+        const query = {};
         if (item === 'true') {
-          const andArray = dateType.map(elm => {
-            return {[`${field}${fieldTypes[elm]}`]: { $exists: false } };
-          });
-          insertionArray.push({$and: andArray});
+          // dateType(配列)のフィールドを全てandで囲う
+          query.$and = dateType.map(elm => ({[`${field}${fieldTypes[elm]}`]: { $exists: false } }));
         } else if (item === 'false') {
-          const orArray = dateType.map(elm => {
-            return {[`${field}${fieldTypes[elm]}`]: { $exists: true } };
-          });
-          insertionArray.push({$or: orArray});
-        } else { // if item isn't true/false -> return empty
-          insertionArray.push({});
+          // dateType(配列)のフィールドを全てorで囲う
+          query.$or = dateType.map(elm => ({[`${field}${fieldTypes[elm]}`]: { $exists: true } }));
         }
+        insertionArray.push(query);
+        return insertionArray;
       }
+
 
       const [, prefixValue, dateValue] = item.match(regex); // 入ってきた値をregexで分割
 

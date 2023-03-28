@@ -221,12 +221,9 @@ let buildRelease4SearchQuery = (args) => {
     ors.push(...tokenQueryBuilder(args[elm], 'dataAbsentReason', '', 'CodeableConcept', modif(elm)));
   });
 
-  // date?.forEach(elm => {
-  //   ors.push(...dateQB(args[elm], ['dateTime', 'Period', 'Timing', 'instant'], 'effective', modif(elm)));
-  // });
-
-    date?.forEach(elm => {
-    ors.push(...dateQB(args[elm], ['Period'], 'effective', modif(elm)));
+  date?.forEach(elm => {
+    // ors.push(...dateQB(args[elm], ['dateTime', 'Period', 'Timing', 'instant'], 'effective', modif(elm)));
+    ors.push(...dateQB(args[elm], ['dateTime', 'Period'], 'effective', modif(elm)));
   });
 
   derived_from?.forEach(elm => {

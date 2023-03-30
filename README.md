@@ -8,8 +8,8 @@
 [line63](https://github.com/ryumtym/fhirServer/blob/master/src/utils/searchResultParams.util.js#L63),
 [line65](https://github.com/ryumtym/fhirServer/blob/master/src/utils/searchResultParams.util.js#L65),
 [line66](https://github.com/ryumtym/fhirServer/blob/master/src/utils/searchResultParams.util.js#L66),
-[line79](https://github.com/ryumtym/fhirServer/blob/master/src/utils/searchResultParams.util.js#L77),
-[line83](https://github.com/ryumtym/fhirServer/blob/master/src/utils/searchResultParams.util.js#L79)
+[line82](https://github.com/ryumtym/fhirServer/blob/master/src/utils/searchResultParams.util.js#L82),
+[line86](https://github.com/ryumtym/fhirServer/blob/master/src/utils/searchResultParams.util.js#L86)
 が機能しない。<br>
 
 - node.js(v16.15)
@@ -22,9 +22,8 @@
 npm install
 npm start
 ```
-:heavy_check_mark: [詳細な内容](https://gist.github.com/ryumtym/6b00d180652144473bf978428ef7883a)
+:heavy_check_mark: [詳細な内容](https://gist.github.com/ryumtym/6b00d180652144473bf978428ef7883a)(2022/09/03_M学会で説明時に使用したgistのため、一部差異がある可能性あり。)
 
-:exclamation: 上記URLはM学会(2022/09/03)で説明時に使用したgistのため、一部差異がある可能性あり。
 
 ## **GETリクエスト & クエリ**
 ### **[search type](https://www.hl7.org/fhir/search.html#Summary)**
@@ -40,7 +39,7 @@ npm start
 | Number      |                               |
 
 ### **Search result params**
-**Patientリソースで確認中**
+:exclamation: **Patientリソースで確認中**
 ```
 _count
 _include

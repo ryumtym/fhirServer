@@ -53,8 +53,8 @@ class R4ResultParamsBuilder {
     //https://build.fhir.org/search.html#_summary
     const r4TextTypeSummary = ['id', 'meta', 'text'];
     const r4DataTypeSummary = ['text'];
-    // test for patient resource
-    // todo: Support for other resources
+
+    // test for patient resource todo: Support for other resources
     const r4TrueTypeSummary = [ 'identifier', 'active', 'name', 'telecom', 'gender', 'birthDate', 'address', 'managingOrganization', 'link'];
 
     const queryBuilder = (queryValue, isExistNum) => { return queryValue.reduce((obj, data) => ({...obj, [data]: isExistNum}), {}); };
@@ -70,27 +70,40 @@ class R4ResultParamsBuilder {
   }
 
   #build_elementsQuery(elements) { // ?_elements=active
-      const target = elements.split(',');
-      const hasHyphenInitial = /^([-])([a-zA-Z0-9.,$;]+$)/; //1文字目がハイフンかどうか正規表現で確認
+      const targets = elements.split(',');
+      const firstLetterIsHyphen = /^([-])([a-zA-Z0-9.,$;]+$)/; //1文字目がハイフンかどうか正規表現で確認
 
-      const visibleItem = target.filter(value => !hasHyphenInitial.exec(value) ); //ハイフンなし -> visibleItemに格納
-      const hiddenItem = target.filter(value => hasHyphenInitial.exec(value) ); //ハイフンあり -> hiddenItemに格納
+      const visibleItem = [];
+      const hiddenItem = [];
+
+      targets.forEach(target => {
+        if (!firstLetterIsHyphen.exec(target) ) { visibleItem.push(target);}
+        if ( firstLetterIsHyphen.exec(target) ) { hiddenItem.push(target);}
+      });
 
       //visibleItemとhiddenItem両方に値が入っている or visibleItemにのみ値が入っている  -> visibleItemとid,metaを基にクエリをつくる
       //hiddenItemにのみ値が入っている -> ハイフンを取り除いてhiddenItemを基にクエリをつくる
       if (visibleItem.length && hiddenItem.length || visibleItem.length && !hiddenItem.length) {
 
-        const visibleMongoField = visibleItem.reduce((obj, elm) => ({...obj, [elm]: 1}), {'id': 1, 'meta': 1});
-        return { 'fields': visibleMongoField };
-        // return visibleItem.reduce((obj, elm) => ({...obj, [elm]: 1}), {'id': 1, 'meta': 1}); // this will be work for mongo(v5.0.9 or latest)
+        const visibleMongoFields = {'id': 1, 'meta': 1}; //表示するMongoフィールド
+
+        for (const item of visibleItem) { // visibleItemに含まれるフィールドをvisibleMongoFieldsに追加する
+          visibleMongoFields[item] = 1;
+        }
+
+        return { 'fields': visibleMongoFields };
+        // return visibleMongoField; // this will be work for mongo(latest)
 
       } else if (!visibleItem.length && hiddenItem.length ) {
 
-        // substringでハイフン(1文字目)を取り除いてクエリ作成
-        const hiddenMongoField = hiddenItem.reduce((obj, elm) => ({...obj, [elm.substring(1)]: 0}), {});
-        return { 'fields': hiddenMongoField };
-        // return hiddenItem.reduce((obj, elm) => ({...obj, [elm.substring(1)]: 0}), {}); // this will be work for mongo(v5.0.9 or latest)
+        const hiddenMongoField = {}; //非表示にするMongoフィールド
 
+        for (const item of hiddenItem) {
+          hiddenMongoField[item.substring(1)] = 0; // hiddenItemに含まれるフィールドをハイフン(1文字目)を取り除いてhiddenMongoFieldに追加
+        }
+
+        return { 'fields': hiddenMongoField };
+        // return hiddenMongoField  // this will be work for mongo(latest)
       }
   }
 

@@ -221,10 +221,8 @@ module.exports.search = (args, req) =>
     let { base_version } = args;
     let query = {};
     query = buildStu3SearchQuery(args);
-    // const resultOptions = r4ResultParamsBuilder(args, refTypeSrchableParams);
     const resultOptions = r4ResultParamsBuilder.bundle(args, refTypeSrchableParams);
 
-    // console.log(Object.keys(args));
     // console.log(resultOptions);
     console.log(args);
     // console.log(query);
@@ -255,12 +253,10 @@ module.exports.search = (args, req) =>
     // };
 
     // fetchOrginalDatasで取得したデータを基に、別データを取得
-
     const fetch_includeDatas = async(datas) => {
       //1. queryを基にデータをとってくる
       const originalDatas = datas;
       const nestPath = 'reference';
-
 
       // 2. originalDatasからinclude queryに当てはまるものを取得
       const datasOfFitTheQueryStrs = resultOptions._include.map(valueOf => {
@@ -315,15 +311,14 @@ module.exports.search = (args, req) =>
 
     };
 
+    // searchメイン処理
     const search = async() => {
       try {
 
-        if (resultOptions._filter === 'count') {
-          return await fetchDatasCount();
-        }
+        if (resultOptions._filter === 'count') { return await fetchDatasCount(); }
+
         // else
-        const orgDatas = await fetchOrginalDatas();
-        // const orgDatas = resultOptions._sort ? await fetchSortedDatas() : await fetchOrginalDatas();
+        const orgDatas = await fetchOrginalDatas(); // const orgDatas = resultOptions._sort ? await fetchSortedDatas() : await fetchOrginalDatas();
         const arr = [];
         arr.push(orgDatas);
         if (resultOptions._include) { arr.push(await fetch_includeDatas(orgDatas)); }

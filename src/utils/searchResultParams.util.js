@@ -69,22 +69,28 @@ class R4ResultParamsBuilder {
     // if (summary === 'true' ) { return queryBuilder([...r4TextTypeSummary, ...r4TrueTypeSummary], 1); } // this will be work for mongo(v5.0.9 or latest)
   }
 
-  #build_elementsQuery(elements, targetType){
-      // ?_elements=identifier -> identifier箇所のみを表示, ?_elements=-identifier -> identifier箇所以外を表示
-      const target = Array.isArray(elements) ? elements : [elements];
-      //1文字目がハイフンかどうか正規表現で確認して、visibleElmかhiddenElmに格納
-      const hasHyphenInitial = /^([-])([a-zA-Z0-9.,$;]+$)/;
-      const visibleElm = target.filter(value => !hasHyphenInitial.exec(value) );
-      const hiddenElm = target.filter(value => hasHyphenInitial.exec(value) );
-      //もしvisibleElmとhiddenElm両方に値が入ってたら or もしvisibleElm配列にのみ値が入ってたら  -> visibleElmのみでクエリをつくる
-      //もしhiddenElmにのみ値が入っていたなら -> ハイフンを取り除いてhiddenElmのみでクエリをつくる
-      if (visibleElm.length && hiddenElm.length || visibleElm.length && !hiddenElm.length){
-        return { [targetType]: visibleElm.reduce((obj, elm) => ({...obj, [elm]: 1}), {'id': 1, 'meta': 1}) };
-        // return visibleElm.reduce((obj, elm) => ({...obj, [elm]: 1}), {'id': 1, 'meta': 1}); // this will be work for mongo(v5.0.9 or latest)
-      } else if (!visibleElm.length && hiddenElm.length ){
-        // ハイフン(1文字目)をsubstringで取り除いてクエリ作成
-        return { [targetType]: hiddenElm.reduce((obj, elm) => ({...obj, [elm.substring(1)]: 0}), {})};
-        // return hiddenElm.reduce((obj, elm) => ({...obj, [elm.substring(1)]: 0}), {}); // this will be work for mongo(v5.0.9 or latest)
+  #build_elementsQuery(elements) { // ?_elements=active
+      const target = elements.split(',');
+      const hasHyphenInitial = /^([-])([a-zA-Z0-9.,$;]+$)/; //1文字目がハイフンかどうか正規表現で確認
+
+      const visibleItem = target.filter(value => !hasHyphenInitial.exec(value) ); //ハイフンなし -> visibleItemに格納
+      const hiddenItem = target.filter(value => hasHyphenInitial.exec(value) ); //ハイフンあり -> hiddenItemに格納
+
+      //visibleItemとhiddenItem両方に値が入っている or visibleItemにのみ値が入っている  -> visibleItemとid,metaを基にクエリをつくる
+      //hiddenItemにのみ値が入っている -> ハイフンを取り除いてhiddenItemを基にクエリをつくる
+      if (visibleItem.length && hiddenItem.length || visibleItem.length && !hiddenItem.length) {
+
+        const visibleMongoField = visibleItem.reduce((obj, elm) => ({...obj, [elm]: 1}), {'id': 1, 'meta': 1});
+        return { 'fields': visibleMongoField };
+        // return visibleItem.reduce((obj, elm) => ({...obj, [elm]: 1}), {'id': 1, 'meta': 1}); // this will be work for mongo(v5.0.9 or latest)
+
+      } else if (!visibleItem.length && hiddenItem.length ) {
+
+        // substringでハイフン(1文字目)を取り除いてクエリ作成
+        const hiddenMongoField = hiddenItem.reduce((obj, elm) => ({...obj, [elm.substring(1)]: 0}), {});
+        return { 'fields': hiddenMongoField };
+        // return hiddenItem.reduce((obj, elm) => ({...obj, [elm.substring(1)]: 0}), {}); // this will be work for mongo(v5.0.9 or latest)
+
       }
   }
 
@@ -143,7 +149,7 @@ class R4ResultParamsBuilder {
 
     if (_count) { query._count = this.#build_countParams(_count); }
     if (_summary) { query._filter = this.#build_summaryQuery(_summary, 'fields'); }
-    if (_elements) { query._filter = this.#build_elementsQuery(_elements, 'fields'); }
+    if (_elements) { query._filter = this.#build_elementsQuery(_elements); }
     if (_include) { query._include = this.#build_includeParams(_include, srchableParams); }
     // if (_include) { query._include = this.#_includeParamsBuilder(_include, this.srchableParams); }
     if (_revinclude) { query._revinclude = this.#build_revincludeParams(_revinclude); }

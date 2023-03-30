@@ -113,7 +113,7 @@ const numQB = (target, field) => {
  * @description targetで与えられた値を基にmongoQueryを作成する
  * @todo observation-effective, patient-deceasedDateTimeの様なパターンでどう対応するか
  * @param {string} target what we are querying for
- * @param {array} dateType observation-effectiveの様な複数クエリを作成する時のために配列内にdateTypeを入れる
+ * @param {array} dateType observation-effective[x]の様な複数のdateTypeクエリを作成するために、配列型
  * @param {string} field JSON path
  * @example 4_0_0/Observation?date=2022-01-13 => dateQB('2022-01-13', ['dateTime', 'Period', 'Timing', 'instant'], 'effective', '')
  * @return a mongo regex query
@@ -140,8 +140,12 @@ let dateQB = function (target, dateType, field, modifier) {
     Timing: 'Timing'
   };
 
-
-  const findDateBoundary = (dateBoundary, dateStr, dateFormat) => { // start/end,日付,フォーマットを基にstartOf,endOf化した日付を返す
+  /**
+ * @name findSmallestTimeUnit
+ * @description 日付フォーマットの最も下の位を取得する buildStartOfDate, buildEndOfDateで使用
+ * @param {string} dateFormat 日付フォーマット
+ */
+  const findSmallestTimeUnit = (dateFormat) => {
     // eg: moment('2022').startOf('day') -> 2022-01-01
     // eg: moment('2022').endOf('day') -> 2022-12-31
     const granularityMap = {
@@ -153,61 +157,73 @@ let dateQB = function (target, dateType, field, modifier) {
       'YYYY-MM-DDTHH:mm:ss': 'second',
     };
 
-    const dateGranularity = granularityMap[dateFormat];
+    return granularityMap[dateFormat];
 
-    // 比較演算子が $gt -> startOf $lt -> endOf
-    if ( dateBoundary === 'start' ) { return moment(dateStr).startOf(dateGranularity).format('YYYY-MM-DDTHH:mm:ssZ'); }
-    if ( dateBoundary === 'end' ) { return moment(dateStr).endOf(dateGranularity).format('YYYY-MM-DDTHH:mm:ssZ'); }
   };
 
-  // const adjustDateByGranularity = (dateStr, dateFormat, adjustment) => {
-  //   const granularityMap = {
-  //     'YYYY': 'year',
-  //     'YYYY-MM': 'month',
-  //     'YYYY-MM-DD': 'day',
-  //     'YYYY-MM-DDTHH': 'hour',
-  //     'YYYY-MM-DDTHH:mm': 'minute',
-  //     'YYYY-MM-DDTHH:mm:ss': 'second',
-  //   };
+  /**
+ * @name buildStartOfDate
+ * @description 日付の開始日を作成する
+ * @param {string} dateStr 日付値(文字列)
+ * @param {string} dateFormat 日付フォーマット
+ */
+  const buildStartOfDate = (dateStr, dateFormat) => {
+    const timeUnit = findSmallestTimeUnit(dateFormat);
+    return moment(dateStr).startOf(timeUnit).format('YYYY-MM-DDTHH:mm:ssZ');
+  };
 
-  //   const dateGranularity = granularityMap[dateFormat];
+  /**
+ * @name buildEndOfDate
+ * @description 日付の終了日を作成する
+ * @param {string} dateStr 日付値(文字列)
+ * @param {string} dateFormat 日付フォーマット
+ */
+  const buildEndOfDate = (dateStr, dateFormat) => {
+    const timeUnit = findSmallestTimeUnit(dateFormat);
+    return moment(dateStr).endOf(timeUnit).format('YYYY-MM-DDTHH:mm:ssZ');
+  };
 
-  //   return moment(dateStr).add(adjustment, dateGranularity).format(dateFormat);
-  // };
-
-  // const findNextDate = (dateStr, dateFormat) => {
-  //   // dateStrとdateFormatに応じて翌年/翌月/翌日...を作成する
-  //   // example: findNextDate('2022', 'YYYY') -> 2023, findNextDate('2022-02', 'YYYY-MM') -> 2022-03
-  //   return adjustDateByGranularity(dateStr, dateFormat, 1);
-  // };
-
-  // const findPrevDate = (dateStr, dateFormat) => {
-  //   // dateStrとdateFormatに応じて昨年/昨月/昨日...を作成する
-  //   // example: findNextDate('2022', 'YYYY') -> 2021, findNextDate('2022-02', 'YYYY-MM') -> 2022-01
-  //   return adjustDateByGranularity(dateStr, dateFormat, -1);
-  // };
-
-  const isISO8601 = (dateStr) => { // iso8601形式か確認
+  /**
+ * @name isISO8601
+ * @description iso8601形式かboolで返す
+ * @param {string} dateStr 日付値(文字列)
+ */
+  const isISO8601 = (dateStr) => {
     const isUTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z/.test(dateStr);
     const isOtherTimeZone = /^(\d{4})(-\d{2})?(-\d{2})?(?:(T\d{2}:\d{2})(:\d{2})?)?(Z|(\+|-|\s)(\d{2})(:\d{2}))?$/.test(dateStr);
     if (!isUTC && !isOtherTimeZone){ return false; }
     else { return true; }
   };
 
-  const isValidPrefix = (prefix) => { //演算子が使用可能な値か確認してbool型で返す
+  /**
+ * @name isValidPrefix
+ * @description prefixがfhirで使用可能か確認してbool型で返す
+ * @param {string} prefix https://www.hl7.org/fhir/search.html#prefix
+ */
+  const isValidPrefix = (prefix) => {
     const validPrefix = [ 'eq', 'ne', 'gt', 'lt', 'ge', 'le', undefined, ''];
     const isValid = validPrefix.some(item => item === prefix);
     return isValid;
   };
 
-  const isValidFormat = (dateStr) => { // 日付値が使用可能なフォーマットか確認 後でbool返す形に直す
+  /**
+ * @name isValidDateFormat
+ * @description 日付値が使用可能なフォーマットか確認 後でbool返す形に直す
+ * @param {string} dateStr 日付値(文字列)
+ */
+  const isValidDateFormat = (dateStr) => {
     const validFormats = ['YYYY', 'YYYY-MM', 'YYYY-MM-DD', 'YYYY-MM-DDTHH', 'YYYY-MM-DDTHH:mm', 'YYYY-MM-DDTHH:mm:ss', 'YYYY-MM-DDTHH:mm:ssZ', 'YYYY-MM-DDTHH:mm:ss.SSSSZ'];
     const isValid = moment(dateStr, validFormats, true).isValid();
     if (isValid) { return moment(dateStr).creationData().format; }
     if (!isValid){ throw (invalidParameterError('date/time format', dateStr, validFormats )); }
   };
 
-  const toMongoPrefix = (prefix) => { // 渡された演算子をmongoDBに沿う形で返却
+  /**
+ * @name toMongoPrefix
+ * @description 渡された演算子をmongoDBに沿う形で返却
+ * @param {string} prefix https://www.hl7.org/fhir/search.html#prefix
+ */
+  const toMongoPrefix = (prefix) => {
     // If no prefix is present, the prefix eq is assumed.
     if (prefix === 'eq' || prefix === undefined || prefix === '' || prefix === null){return '$eq';}
     // if (prefix === 'eq'){return '$eq';}
@@ -218,9 +234,23 @@ let dateQB = function (target, dateType, field, modifier) {
     if (prefix === 'le'){return '$lte';}
   };
 
-  const toFormat = (dateStr) => moment(dateStr).creationData().format; // 日付をフォーマット化 eg: 2000-01-01 -> YYYY-MM-DD
+  /**
+ * @name toFormat
+ * @description 日付をフォーマット化 eg: 2000-01-01 -> YYYY-MM-DD
+ * @param {string} dateStr 日付値(文字列)
+ */
+  const toFormat = (dateStr) => moment(dateStr).creationData().format;
 
+  /**
+ * @name buildMongoQuery
+ * @description フィールド/prefix/検索値/dateTypeを基にmongoQueryを作成する
+ * @param {string} path 検索するフィールド
+ * @param {string} prefix https://www.hl7.org/fhir/search.html#prefix
+ * @param {string} value 検索値
+ * @param {string} type fhirで指定されたdateType
+ */
   const buildMongoQuery = (path, prefix, value, type) => {
+
     const formatDate = toFormat(value); // 日付をフォーマット化
     const hasTimeZone = ['YYYY-MM-DDTHH:mm:ssZ', 'YYYY-MM-DDTHH:mm:ss.SSSSZ'].some(elm => elm === formatDate ); // 秒以下の指定があるかを確認してbool型で返す
     const fieldType = `${path}${fieldTypes[type]}`;
@@ -248,22 +278,14 @@ let dateQB = function (target, dateType, field, modifier) {
         query['$and'].push({ [fieldType]: { '$not': { $regex: '^' + value } } });
       }
 
-      if (prefix === '$gt') {
-        query['$and'].push({ [fieldType]: { [prefix]: findDateBoundary('end', value, formatDate) } });
+      if (prefix === '$gt' || prefix === '$lte') {
+        query['$and'].push({ [fieldType]: { [prefix]: buildEndOfDate(value, formatDate) } });
       }
 
-      if (prefix === '$gte') {
-        query['$and'].push({ [fieldType]: { [prefix]: findDateBoundary('start', value, formatDate) } });
+      if (prefix === '$gte' || prefix === '$lt') {
+        query['$and'].push({ [fieldType]: { [prefix]: buildStartOfDate(value, formatDate) } });
       }
 
-      if (prefix === '$lt') {
-        query['$and'].push({ [fieldType]: { [prefix]: findDateBoundary('start', value, formatDate) } });
-      }
-
-      if (prefix === '$lte') {
-        query['$and'].push({ [fieldType]: { [prefix]: findDateBoundary('end', value, formatDate) } });
-
-      }
 
     }
 
@@ -290,12 +312,12 @@ let dateQB = function (target, dateType, field, modifier) {
       }
 
       if (prefix === '$gt') {
-        query['$and'].push({ [`${fieldType}.start`]: { [prefix]: findDateBoundary('end', value, formatDate) } });
+        query['$and'].push({ [`${fieldType}.start`]: { [prefix]: buildEndOfDate(value, formatDate) } });
       }
 
       if (prefix === '$gte') {
         query['$and'].push({
-          [`${fieldType}.start`]: { [prefix]: findDateBoundary('start', value, formatDate) }
+          [`${fieldType}.start`]: { [prefix]: buildStartOfDate(value, formatDate) }
           // ['$or']: [
           //   { [`${fieldType}.start`]: { [prefix]: findDateBoundary('start', value, formatDate) } },
           //   { [`${fieldType}.end`]: { [prefix]: findDateBoundary('start', value, formatDate) } }
@@ -305,12 +327,12 @@ let dateQB = function (target, dateType, field, modifier) {
       }
 
       if (prefix === '$lt') {
-        query['$and'].push({ [`${fieldType}.end`]: { [prefix]: findDateBoundary('start', value, formatDate) } });
+        query['$and'].push({ [`${fieldType}.end`]: { [prefix]: buildStartOfDate(value, formatDate) } });
       }
 
       if (prefix === '$lte') {
         query['$and'].push({
-          [`${fieldType}.end`]: { [prefix]: findDateBoundary('start', value, formatDate) }
+          [`${fieldType}.end`]: { [prefix]: buildStartOfDate(value, formatDate) }
           // ['$or']: [
           //   { [`${fieldType}.start`]: { [prefix]: findDateBoundary('end', value, formatDate) } },
           //   { [`${fieldType}.end`]: { [prefix]: findDateBoundary('end', value, formatDate) } }
@@ -347,29 +369,29 @@ let dateQB = function (target, dateType, field, modifier) {
       }
 
       if (prefix === '$gt') {
-        query['$and'].push({ [`${fieldType}.repeat.boundsPeriod.end`]: { [prefix]: findDateBoundary('end', value, formatDate) } });
+        query['$and'].push({ [`${fieldType}.repeat.boundsPeriod.end`]: { [prefix]: buildEndOfDate(value, formatDate) } });
       }
 
       if (prefix === '$gte') {
         query['$and'].push({
           ['$or']: [
-            { [`${fieldType}.event`]: { [prefix]: findDateBoundary('start', value, formatDate) } },
-            { [`${fieldType}.repeat.boundsPeriod.start`]: { [prefix]: findDateBoundary('start', value, formatDate) } },
-            { [`${fieldType}.repeat.boundsPeriod.end`]: { [prefix]: findDateBoundary('start', value, formatDate) } }
+            { [`${fieldType}.event`]: { [prefix]: buildStartOfDate(value, formatDate) } },
+            { [`${fieldType}.repeat.boundsPeriod.start`]: { [prefix]: buildStartOfDate(value, formatDate) } },
+            { [`${fieldType}.repeat.boundsPeriod.end`]: { [prefix]: buildStartOfDate(value, formatDate) } }
           ]
         });
       }
 
       if (prefix === '$lt') {
-        query['$and'].push({ [`${fieldType}.repeat.boundsPeriod.start`]: { [prefix]: findDateBoundary('start', value, formatDate) } });
+        query['$and'].push({ [`${fieldType}.repeat.boundsPeriod.start`]: { [prefix]: buildStartOfDate(value, formatDate) } });
       }
 
       if (prefix === '$lte') {
         query['$and'].push({
           ['$or']: [
-            { [`${fieldType}.event`]: { [prefix]: findDateBoundary('end', value, formatDate) } },
-            { [`${fieldType}.repeat.boundsPeriod.start`]: { [prefix]: findDateBoundary('end', value, formatDate) } },
-            { [`${fieldType}.repeat.boundsPeriod.end`]: { [prefix]: findDateBoundary('end', value, formatDate) } }
+            { [`${fieldType}.event`]: { [prefix]: buildEndOfDate(value, formatDate) } },
+            { [`${fieldType}.repeat.boundsPeriod.start`]: { [prefix]: buildEndOfDate(value, formatDate) } },
+            { [`${fieldType}.repeat.boundsPeriod.end`]: { [prefix]: buildEndOfDate(value, formatDate) } }
           ]
         });
       }
@@ -385,38 +407,38 @@ let dateQB = function (target, dateType, field, modifier) {
     const insertionArray = (itemList.length === 1) ? andQueryBundle : orQueryBundle;
     for (const item of itemList) {
 
-      if (modifier === 'missing') {
+      if (modifier === 'missing') { //:missing時の処理
         const query = {};
-        if (item === 'true') {
-          // dateType(配列)のフィールドを全てandで囲う
+        if (item === 'true') { // dateType(配列)のフィールドを全てandで囲う
           query.$and = dateType.map(elm => ({[`${field}${fieldTypes[elm]}`]: { $exists: false } }));
-        } else if (item === 'false') {
-          // dateType(配列)のフィールドを全てorで囲う
+        } else if (item === 'false') { // dateType(配列)のフィールドを全てorで囲う
           query.$or = dateType.map(elm => ({[`${field}${fieldTypes[elm]}`]: { $exists: true } }));
         }
         insertionArray.push(query);
-        return insertionArray;
+        continue;
+        // return insertionArray;
       }
-
 
       const [, prefixValue, dateValue] = item.match(regex); // 入ってきた値をregexで分割
 
       // 使用可能なprefixか、iso8601か、それぞれboolチェック falseならエラー処理
       if (!isValidPrefix(prefixValue)) { throw (unknownParameterError('Prefix', prefixValue, ['eq', 'ne', 'gt', 'lt', 'ge', 'le'] )); }
       if (!isISO8601(dateValue)){ throw (invalidParameterError('date/time format', dateValue, 'ISO8601 formats only' ));}
-      if (!isValidFormat(dateValue)){ throw (invalidParameterError('date/time format', dateValue, ['YYYY', 'YYYY-MM', 'YYYY-MM-DD', 'YYYY-MM-DDTHH', 'YYYY-MM-DDTHH:mm', 'YYYY-MM-DDTHH:mm:ss', 'YYYY-MM-DDTHH:mm:ssZ', 'YYYY-MM-DDTHH:mm:ss.SSSSZ'] ));}
+      if (!isValidDateFormat(dateValue)){ throw (invalidParameterError('date/time format', dateValue, ['YYYY', 'YYYY-MM', 'YYYY-MM-DD', 'YYYY-MM-DDTHH', 'YYYY-MM-DDTHH:mm', 'YYYY-MM-DDTHH:mm:ss', 'YYYY-MM-DDTHH:mm:ssZ', 'YYYY-MM-DDTHH:mm:ss.SSSSZ'] ));}
       // moment(dateValue).utcOffset('+01:00').format('YYYY-MM-DDTHH:mm:ssZ');
 
       const mongoPrefix = toMongoPrefix(prefixValue); // prefixをmongoで検索する形に変更
 
-      // クエリ値を作成、検索値が分以下を含んでいて、offsetがない場合は09:00(Asia/Tokyo)に変換
-      // fhirの日付&offset仕様がまだ固まっていないので暫定的な処理 http://community.fhir.org/t/searching-dates-and-time-zone/547
+      // クエリ値を作成、検索値が分以下を含んでいて、offsetがない場合は09:00(Asia/Tokyo)に変換 http://community.fhir.org/t/searching-dates-and-time-zone/547
       const queryValue = (() => {
-        const validFormat1 = ['YYYY', 'YYYY-MM', 'YYYY-MM-DD', 'YYYY-MM-DDTHH', 'YYYY-MM-DDTHH:mm:ssZ', 'YYYY-MM-DDTHH:mm:ss.SSSSZ'];
-        const validFormat2 = ['YYYY-MM-DDTHH:mm', 'YYYY-MM-DDTHH:mm:ss'];
-        if (validFormat1.some(v => v === toFormat(dateValue) )){ return dateValue; }
-        if (validFormat2.some(v => v === toFormat(dateValue) )){ return moment(dateValue).utcOffset('+09:00').format('YYYY-MM-DDTHH:mm:ssZ'); }
-        throw (invalidParameterError('date/time format', dateValue, [...validFormat1, ...validFormat2] ));
+
+        const validDateFormat = ['YYYY', 'YYYY-MM', 'YYYY-MM-DD', 'YYYY-MM-DDTHH', 'YYYY-MM-DDTHH:mm:ssZ', 'YYYY-MM-DDTHH:mm:ss.SSSSZ'];
+        const offsetlessDateFormat = ['YYYY-MM-DDTHH:mm', 'YYYY-MM-DDTHH:mm:ss'];
+
+        if ( validDateFormat.includes( toFormat(dateValue) ) ) { return dateValue; }
+        if ( offsetlessDateFormat.includes( toFormat(dateValue) ) ){ return moment(dateValue).utcOffset('+09:00').format('YYYY-MM-DDTHH:mm:ssZ'); }
+        throw (invalidParameterError('date/time format', dateValue, [...validDateFormat, ...offsetlessDateFormat] ));
+
       })();
 
       insertionArray.push({ '$or': dateType.map(elm => buildMongoQuery(field, mongoPrefix, queryValue, elm)) });

@@ -45,38 +45,46 @@ class R4ResultParamsBuilder {
   // }
 
   #build_countParams(count) {
-    return count > 100 ? 100 : Number(count);
+    //_countで指定された値が100以上でも最大表示数は100まで
+    return (count > 100) ? 100 : Number(count);
   }
 
   #build_summaryQuery(summary, targetType){
-    const r4SummaryTextValues = ['id', 'meta', 'text'];
-    const r4SummaryDataValues = ['text'];
+    //https://build.fhir.org/search.html#_summary
+    const r4TextTypeSummary = ['id', 'meta', 'text'];
+    const r4DataTypeSummary = ['text'];
     // test for patient resource
-    const r4SummaryTrueValues = [ 'identifier', 'active', 'name', 'telecom', 'gender', 'birthDate', 'address', 'managingOrganization', 'link'];
+    // todo: Support for other resources
+    const r4TrueTypeSummary = [ 'identifier', 'active', 'name', 'telecom', 'gender', 'birthDate', 'address', 'managingOrganization', 'link'];
 
-    const qB = (arr, orderNum) => { return arr.reduce((obj, data) => ({...obj, [data]: orderNum}), {}); };
+    const queryBuilder = (queryValue, isExistNum) => { return queryValue.reduce((obj, data) => ({...obj, [data]: isExistNum}), {}); };
 
-    if (summary === 'count') { return 'count'; }
-    if (summary === 'data' ) { return { [targetType]: qB(r4SummaryDataValues, 0) }; }
-    if (summary === 'false') { return 'false'; }
-    if (summary === 'text' ) { return { [targetType]: qB(r4SummaryTextValues, 1) }; }
-    if (summary === 'true' ) { return { [targetType]: qB([...r4SummaryTextValues, ...r4SummaryTrueValues], 1)}; }
+    if (summary === 'count') { return 'count'; } // ?_summary=count -> データ数返却
+    if (summary === 'data' ) { return { [targetType]: queryBuilder(r4DataTypeSummary, 0) }; } // ?_summary=data -> text要素を省いたデータを返却
+    if (summary === 'false') { return 'false'; } // ?_summary=data -> データ全て返却
+    if (summary === 'text' ) { return { [targetType]: queryBuilder(r4TextTypeSummary, 1) }; } // ?_summary=text -> id, metaとその他最上位要素を返却
+    if (summary === 'true' ) { return { [targetType]: queryBuilder([...r4TextTypeSummary, ...r4TrueTypeSummary], 1)}; } // ?_summary=true -> fhirでsummaryとして定義されているデータを返却
+    // if (summary === 'data' ) { return queryBuilder(r4DataTypeSummary, 0); } // this will be work for mongo(v5.0.9 or latest)
+    // if (summary === 'text' ) { return queryBuilder(r4TextTypeSummary, 1); } // this will be work for mongo(v5.0.9 or latest)
+    // if (summary === 'true' ) { return queryBuilder([...r4TextTypeSummary, ...r4TrueTypeSummary], 1); } // this will be work for mongo(v5.0.9 or latest)
   }
 
   #build_elementsQuery(elements, targetType){
-      // const validValues = elements.split(/,/).filter(Boolean);
-      let validValues = Array.isArray(elements) ? elements : [elements];
-      //1文字目がハイフンでないならvisibleElm 1文字目がハイフンならhiddenElm
-      const hasHyphen = /^([-])([a-zA-Z0-9.,$;]+$)/;
-      const visibleElm = validValues.filter(value => !hasHyphen.exec(value) );
-      const hiddenElm = validValues.filter(value => hasHyphen.exec(value) );
-
-      //もし配列両方に値が入ってたら or もしvisibleElm配列にのみ値が入ってたら  -> visibleElmのみでクエリをつくる
+      // ?_elements=identifier -> identifier箇所のみを表示, ?_elements=-identifier -> identifier箇所以外を表示
+      const target = Array.isArray(elements) ? elements : [elements];
+      //1文字目がハイフンかどうか正規表現で確認して、visibleElmかhiddenElmに格納
+      const hasHyphenInitial = /^([-])([a-zA-Z0-9.,$;]+$)/;
+      const visibleElm = target.filter(value => !hasHyphenInitial.exec(value) );
+      const hiddenElm = target.filter(value => hasHyphenInitial.exec(value) );
+      //もしvisibleElmとhiddenElm両方に値が入ってたら or もしvisibleElm配列にのみ値が入ってたら  -> visibleElmのみでクエリをつくる
       //もしhiddenElmにのみ値が入っていたなら -> ハイフンを取り除いてhiddenElmのみでクエリをつくる
       if (visibleElm.length && hiddenElm.length || visibleElm.length && !hiddenElm.length){
         return { [targetType]: visibleElm.reduce((obj, elm) => ({...obj, [elm]: 1}), {'id': 1, 'meta': 1}) };
+        // return visibleElm.reduce((obj, elm) => ({...obj, [elm]: 1}), {'id': 1, 'meta': 1}); // this will be work for mongo(v5.0.9 or latest)
       } else if (!visibleElm.length && hiddenElm.length ){
-        return { [targetType]: hiddenElm.reduce((obj, elm) => ({...obj, [elm.substr(1)]: 0}), {'id': 1, 'meta': 1}) };
+        // ハイフン(1文字目)をsubstringで取り除いてクエリ作成
+        return { [targetType]: hiddenElm.reduce((obj, elm) => ({...obj, [elm.substring(1)]: 0}), {})};
+        // return hiddenElm.reduce((obj, elm) => ({...obj, [elm.substring(1)]: 0}), {}); // this will be work for mongo(v5.0.9 or latest)
       }
   }
 
@@ -139,7 +147,6 @@ class R4ResultParamsBuilder {
     if (_include) { query._include = this.#build_includeParams(_include, srchableParams); }
     // if (_include) { query._include = this.#_includeParamsBuilder(_include, this.srchableParams); }
     if (_revinclude) { query._revinclude = this.#build_revincludeParams(_revinclude); }
-
     return query;
   }
 }

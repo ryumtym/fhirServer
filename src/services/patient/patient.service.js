@@ -237,6 +237,7 @@ module.exports.search = (args, req) =>
 
     //データを取得する もしクエリストリングに_includeか_revincludeがあった際これを基にinclude,revinclude関数を動かす
     const fetchOrginalDatas = async() => {
+      console.log(resultOptions._filter);
       const orgDatas = await collection.find(query, resultOptions._filter).limit(resultOptions._count).collation().toArray();
       return orgDatas.map(item => new Patient(item)); //schema process
     };

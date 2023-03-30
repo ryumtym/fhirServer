@@ -3,7 +3,15 @@
 - 3/31~ 中断
 
 ## **開発環境**
-:exclamation: MongoDB(v5.0.9)以降で廃止されたクエリ検索を一部使用しているので、5.09以上のMongo環境だとクエリ検索が機能しない可能性がある
+:exclamation: MongoDB(v5.0.9)以降で廃止されたクエリ検索([issue](https://github.com/Automattic/mongoose/issues/6880))を一部使用しているので、5.09以上のMongo環境だと、
+`src/searchParams.util`の
+[line63](https://github.com/ryumtym/fhirServer/blob/master/src/utils/searchResultParams.util.js#L63),
+[line65](https://github.com/ryumtym/fhirServer/blob/master/src/utils/searchResultParams.util.js#L65),
+[line66](https://github.com/ryumtym/fhirServer/blob/master/src/utils/searchResultParams.util.js#L66),
+[line79](https://github.com/ryumtym/fhirServer/blob/master/src/utils/searchResultParams.util.js#L77),
+[line83](https://github.com/ryumtym/fhirServer/blob/master/src/utils/searchResultParams.util.js#L79)
+が機能しない。<br>
+
 - node.js(v16.15)
 - MongoDB(v5.0.9)
 

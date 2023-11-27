@@ -1,3 +1,7 @@
+# Intro
+This repository is in suspended status and should only be cloned if you want to learn the basics of fhir.<br>
+:heavy_check_mark: [doc](https://gist.github.com/ryumtym/6b00d180652144473bf978428ef7883a): This is a document for the IPCI practical session at the [M conference](https://www.mta.gr.jp/mta2022/program.html) on 2022/09/03
+
 ## Recent
 - 3/15 Patient, Observationリソースに対応
 - 3/31~ 中断
@@ -22,7 +26,6 @@
 npm install
 npm start
 ```
-:heavy_check_mark: [詳細な内容](https://gist.github.com/ryumtym/6b00d180652144473bf978428ef7883a)(2022/09/03_M学会で説明時に使用したgistのため、一部差異がある可能性あり。)
 
 
 ## **GETリクエスト & クエリ**
